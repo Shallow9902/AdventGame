@@ -548,7 +548,14 @@
   function updateGrutikBar() {
     var companionVisible = window.__previewDay != null || state.introSeen && state.grootPlanted;
     setCompanionVisible(companionVisible);
-    try { drawGrutik($("grutikCanvas"), grutikStage()); } catch (e) { }
+    var sleeping = typeof isGrutikSleeping === "function" && isGrutikSleeping();
+    try {
+      drawGrutik($("grutikCanvas"), grutikStage(), sleeping ? { sleeping: true } : null);
+    } catch (e) { }
+    if (sleeping && typeof grutikSleeping !== "undefined" && !grutikSleeping && typeof runGrutikSleep === "function") {
+      grutikSleeping = true;
+      grutikSleepRaf = requestAnimationFrame(runGrutikSleep);
+    }
     var line = grutikLine();
     var sayEl = $("grutikSay");
     if (line.includes("\n")) {
@@ -1171,12 +1178,30 @@
 
   function renderWait() {
     $("screenWait").classList.add("active");
+    $("waitEmoji").textContent = "💤 ТИХИЙ ЧАС";
     $("waitTitle").textContent = "На сегодня всё";
-    $("waitText").textContent = "Играй завтра — тебя ждёт ещё один подарок.";
+    $("waitText").textContent = "Грутик сладко спит и набирается сил. Следующий подарок откроется завтра!";
     var ms = nextMidnight() - Date.now();
     var hh = Math.floor(ms / 3600000);
     var mm = Math.floor((ms % 3600000) / 60000);
     $("waitCount").textContent = "Следующее открытие через " + hh + " ч " + mm + " мин";
+
+    var waitCanvas = $("waitGrutikCanvas");
+    if (waitCanvas) {
+      window.__waitCanvas = waitCanvas;
+      if (typeof runGrutikSleep === "function" && isGrutikSleeping()) {
+        if (!grutikSleeping) {
+          grutikSleeping = true;
+          grutikSleepRaf = requestAnimationFrame(runGrutikSleep);
+        }
+      }
+      waitCanvas.onclick = function () {
+        var sayEl = $("grutikSay");
+        if (sayEl) {
+          sayEl.innerHTML = '<span class="groot-voice">Я есть Грутик...</span><span class="groot-trans">(Тсс... Малыш сладко спит до завтра 💤)</span>';
+        }
+      };
+    }
 
     var blockPlayBtn = $("waitPlayBlock");
     if (blockPlayBtn) {

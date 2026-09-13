@@ -242,7 +242,7 @@ function drawSprout(ctx, x, ground, scale, stage, traits, pose) {
   var top = ground - bodyH;
   var headScale = scale * (stage === 1 ? .78 : .92);
   var headY = top - 24 * headScale;
-  var armLift = pose.arm || 0;
+  var armLift = (pose && pose.sleeping) ? -14 : (pose.arm || 0);
 
   branchStroke(ctx, [
     [x - bodyW * .35, top + bodyH * .35],
@@ -286,7 +286,7 @@ function drawBody(ctx, x, ground, scale, traits, pose) {
   var bodyW = 48 * scale * (1 + traits.heroic * .2);
   var top = ground - bodyH;
   var shoulder = top + 33 * scale;
-  var armLift = pose.arm || 0;
+  var armLift = (pose && pose.sleeping) ? -18 : (pose.arm || 0);
 
   branchStroke(ctx, [
     [x - bodyW * .38, shoulder],
@@ -371,28 +371,52 @@ function drawHead(ctx, x, y, scale, traits, pose) {
     ctx.stroke();
   });
 
-  var blink = pose.blink || 0;
-  var eyeH = Math.max(1.5 * scale, 9 * scale * (1 - blink));
-  ctx.fillStyle = "#17100c";
-  ctx.beginPath();
-  ctx.ellipse(-w * .2, -h * .02, 10 * scale, eyeH, 0, 0, Math.PI * 2);
-  ctx.ellipse(w * .2, -h * .02, 10 * scale, eyeH, 0, 0, Math.PI * 2);
-  ctx.fill();
-  if (blink < .75) {
-    ctx.fillStyle = "#e6d4bb";
+  if (pose && pose.sleeping) {
+    ctx.strokeStyle = "#2b1b14";
+    ctx.lineWidth = 3.2 * scale;
+    ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.arc(-w * .17, -h * .055, 2.8 * scale, 0, Math.PI * 2);
-    ctx.arc(w * .23, -h * .055, 2.8 * scale, 0, Math.PI * 2);
-    ctx.fill();
-  }
+    ctx.arc(-w * .2, -h * .01, 7.5 * scale, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(w * .2, -h * .01, 7.5 * scale, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
 
-  ctx.strokeStyle = "#39261d";
-  ctx.lineWidth = 3 * scale;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  if (traits.chaos > .6) ctx.arc(0, h * .2, 13 * scale, Math.PI * 1.15, Math.PI * 1.85);
-  else ctx.arc(0, h * .17, 13 * scale, Math.PI * .15, Math.PI * .85);
-  ctx.stroke();
+    ctx.fillStyle = "rgba(243, 93, 145, 0.24)";
+    ctx.beginPath();
+    ctx.ellipse(-w * .25, h * .09, 7 * scale, 4 * scale, 0, 0, Math.PI * 2);
+    ctx.ellipse(w * .25, h * .09, 7 * scale, 4 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#39261d";
+    ctx.lineWidth = 2.6 * scale;
+    ctx.beginPath();
+    ctx.arc(0, h * .18, 6.5 * scale, Math.PI * .2, Math.PI * .8);
+    ctx.stroke();
+  } else {
+    var blink = pose.blink || 0;
+    var eyeH = Math.max(1.5 * scale, 9 * scale * (1 - blink));
+    ctx.fillStyle = "#17100c";
+    ctx.beginPath();
+    ctx.ellipse(-w * .2, -h * .02, 10 * scale, eyeH, 0, 0, Math.PI * 2);
+    ctx.ellipse(w * .2, -h * .02, 10 * scale, eyeH, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (blink < .75) {
+      ctx.fillStyle = "#e6d4bb";
+      ctx.beginPath();
+      ctx.arc(-w * .17, -h * .055, 2.8 * scale, 0, Math.PI * 2);
+      ctx.arc(w * .23, -h * .055, 2.8 * scale, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = "#39261d";
+    ctx.lineWidth = 3 * scale;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    if (traits.chaos > .6) ctx.arc(0, h * .2, 13 * scale, Math.PI * 1.15, Math.PI * 1.85);
+    else ctx.arc(0, h * .17, 13 * scale, Math.PI * .15, Math.PI * .85);
+    ctx.stroke();
+  }
   ctx.restore();
   return { w: w, h: h };
 }
@@ -499,6 +523,25 @@ function drawFinalAccents(ctx, x, y, scale, traits, time) {
   ctx.globalAlpha = 1;
 }
 
+function drawSleepParticles(ctx, x, headY, scale, time) {
+  ctx.save();
+  var letters = ["z", "Z", "z"];
+  for (var i = 0; i < letters.length; i++) {
+    var cycle = ((time * 0.0006) + i * 0.333) % 1;
+    var alpha = Math.sin(cycle * Math.PI);
+    if (alpha <= 0.02) continue;
+    var px = x + (24 + i * 14) * scale + Math.sin(cycle * 3.5) * 6 * scale;
+    var py = headY - 16 * scale - cycle * 58 * scale;
+    ctx.globalAlpha = alpha * 0.88;
+    ctx.font = "bold " + Math.round((13 + i * 4) * scale) + "px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = "#f7b5d5";
+    ctx.shadowColor = "rgba(243, 93, 145, 0.65)";
+    ctx.shadowBlur = 9;
+    ctx.fillText(letters[i], px, py);
+  }
+  ctx.restore();
+}
+
 function drawGrutik(canvas, stage, pose) {
   if (!canvas) return;
   var ctx = canvas.getContext("2d");
@@ -538,6 +581,9 @@ function drawGrutik(canvas, stage, pose) {
       headY = sprout.headY;
       drawLeafClusters(ctx, x, headY, sprout.leafScale, traits.leaves, traits, now);
     }
+    if (motion.sleeping) {
+      drawSleepParticles(ctx, x, headY, mature ? scale : sprout.leafScale, now);
+    }
     ctx.restore();
     canvas.__gru = { x: x, y: ground, s: scale, mode: traits.venom, happy: traits.heroic, baby: !mature, W: W, H: H };
   } else {
@@ -552,30 +598,87 @@ var grutikIdleStage = null;
 var grutikIdleTimer = 0;
 var grutikIdleRaf = 0;
 var grutikIdleAction = null;
+var grutikSleeping = false;
+var grutikSleepRaf = 0;
+
+function isGrutikSleeping() {
+  if (typeof window !== "undefined" && window.__forceSleeping != null) return window.__forceSleeping;
+  if (typeof state !== "undefined" && state && state.givenDay && typeof currentDayIdx === "function") {
+    var cur = currentDayIdx();
+    if (state.givenDay.indexOf(cur) !== -1) return true;
+    if (state.givenDay.length >= (typeof DAYS !== "undefined" ? DAYS : 6)) return true;
+  }
+  return false;
+}
+
+function runGrutikSleep(time) {
+  if (!grutikIdleCanvas && !(typeof window !== "undefined" && window.__waitCanvas)) return;
+  if (!isGrutikSleeping()) {
+    grutikSleeping = false;
+    cancelAnimationFrame(grutikSleepRaf);
+    scheduleGrutikIdle();
+    return;
+  }
+  var stage = grutikIdleStage ? grutikIdleStage() : 1;
+  var breathe = Math.sin(time * 0.0018) * 2;
+  var pose = {
+    time: time,
+    sleeping: true,
+    tilt: 0.16 + Math.sin(time * 0.0014) * 0.025,
+    arm: -12,
+    y: breathe
+  };
+  if (grutikIdleCanvas) {
+    drawGrutik(grutikIdleCanvas, stage, pose);
+  }
+  if (typeof window !== "undefined" && window.__waitCanvas) {
+    drawGrutik(window.__waitCanvas, stage, pose);
+  }
+  grutikSleepRaf = requestAnimationFrame(runGrutikSleep);
+}
 
 function startGrutikIdle(canvas, stageFn) {
   stopGrutikIdle();
   grutikIdleCanvas = canvas;
   grutikIdleStage = stageFn;
-  scheduleGrutikIdle();
+  if (isGrutikSleeping()) {
+    grutikSleeping = true;
+    grutikSleepRaf = requestAnimationFrame(runGrutikSleep);
+  } else {
+    scheduleGrutikIdle();
+  }
 }
 
 function stopGrutikIdle() {
   clearTimeout(grutikIdleTimer);
   cancelAnimationFrame(grutikIdleRaf);
+  cancelAnimationFrame(grutikSleepRaf);
   grutikIdleCanvas = null;
   grutikIdleStage = null;
   grutikIdleAction = null;
+  grutikSleeping = false;
 }
 
 function scheduleGrutikIdle() {
   clearTimeout(grutikIdleTimer);
+  if (isGrutikSleeping()) {
+    if (!grutikSleeping) {
+      grutikSleeping = true;
+      grutikSleepRaf = requestAnimationFrame(runGrutikSleep);
+    }
+    return;
+  }
   grutikIdleTimer = setTimeout(beginGrutikIdle, 2800 + Math.random() * 3200);
 }
 
 function beginGrutikIdle() {
   if (!grutikIdleCanvas || document.hidden) {
     scheduleGrutikIdle();
+    return;
+  }
+  if (isGrutikSleeping()) {
+    grutikSleeping = true;
+    grutikSleepRaf = requestAnimationFrame(runGrutikSleep);
     return;
   }
   var stage = grutikIdleStage ? grutikIdleStage() : 1;

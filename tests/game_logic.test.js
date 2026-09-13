@@ -450,6 +450,20 @@ test('grutikLine: does not say "Начнём?" when day is already completed', (
   assert.ok(result.includes('Буду ждать') || result.includes('справились') || result.includes('Отдыхаем'), 'Should indicate completion/waiting for tomorrow');
 });
 
+test('Sleeping Grutik: sleeping animation, particles, and pose after day completion', () => {
+  const grutikCode = fs.readFileSync(path.join(__dirname, '..', 'grutik.js'), 'utf8');
+  assert.ok(grutikCode.includes('function drawSleepParticles'), 'drawSleepParticles should exist in grutik.js');
+  assert.ok(grutikCode.includes('function isGrutikSleeping'), 'isGrutikSleeping should exist in grutik.js');
+  assert.ok(grutikCode.includes('function runGrutikSleep'), 'runGrutikSleep should exist in grutik.js');
+  assert.ok(grutikCode.includes('pose.sleeping'), 'drawHead should support pose.sleeping');
+
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  assert.ok(appCode.includes('waitGrutikCanvas'), 'waitGrutikCanvas should be referenced in app.js');
+
+  const htmlCode = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.ok(htmlCode.includes('waitGrutikCanvas'), 'index.html should have waitGrutikCanvas element');
+});
+
 
 
 
