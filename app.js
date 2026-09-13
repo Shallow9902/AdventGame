@@ -512,7 +512,31 @@
   }
 
   function grutikLine() {
-    if (!state.grootPlanted && window.__previewDay == null) return GRUTIK_LINES[0];
+    if (window.__previewDay != null) {
+      return lineForDay(window.__previewDay + 1);
+    }
+    if (!state.grootPlanted) return GRUTIK_LINES[0];
+
+    // All days completed
+    if (state.givenDay.length >= DAYS) {
+      return state.finalForm
+        ? "Я есть Грутик.\n(Мы всё ещё здесь. Спасибо тебе за всё!)"
+        : "Я есть Грутик!\n(Мы прошли все испытания! Ты самая лучшая.)";
+    }
+
+    // A spin on the wheel is pending
+    if (getPendingSpinDay() != null) {
+      return "Я есть Грутик!\n(Колесо ждёт! Крути скорее!)";
+    }
+
+    // Today's day is already completed and gift is claimed (waiting for tomorrow)
+    if (state.givenDay.indexOf(currentDayIdx()) !== -1) {
+      if (state.venomInfected) {
+        return "Я есть Грутик.\n(На сегодня всё. Отдыхаем до завтра.)";
+      }
+      return "Я есть Грутик...\n(Сегодня мы отлично справились. Буду ждать тебя завтра!)";
+    }
+
     return lineForDay(currentDayIdx() + 1);
   }
 

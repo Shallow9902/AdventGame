@@ -413,6 +413,43 @@ test('Secret gifts: won gifts are blurred and classified with gift numbers', () 
   assert.ok(cssCode.includes('.gift-secret-number'), 'CSS should style gift secret number');
 });
 
+test('grutikLine: does not say "Начнём?" when day is already completed', () => {
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  assert.ok(appCode.includes('function grutikLine()'), 'grutikLine function should exist');
+
+  const match = appCode.match(/function grutikLine\(\) \{([\s\S]*?)\n  \}/);
+  assert.ok(match, 'grutikLine should match regex');
+
+  const DAYS = 6;
+  const GRUTIK_LINES = [
+    "Я есть Грутик...\n(Сигнал едва заметен.)",
+    "Я есть Грутик.\n(Начнём?)",
+    "Я есть Грутик!\n(Блоки готовы.)"
+  ];
+  const lineForDay = (d) => GRUTIK_LINES[d] || "line";
+  const currentDayIdx = () => 0; // Day 1
+
+  // Day 1 completed: givenDay has [0]
+  const stateCompletedDay1 = {
+    grootPlanted: true,
+    givenDay: [0],
+    won: [],
+    venomInfected: false,
+    finalForm: false
+  };
+
+  const getPendingSpinDay = () => null;
+
+  const fn = new Function('state', 'window', 'DAYS', 'GRUTIK_LINES', 'lineForDay', 'currentDayIdx', 'getPendingSpinDay', `
+    ${match[0]}
+    return grutikLine();
+  `);
+
+  const result = fn(stateCompletedDay1, {}, DAYS, GRUTIK_LINES, lineForDay, currentDayIdx, getPendingSpinDay);
+  assert.ok(!result.includes('Начнём?'), `grutikLine should not ask "Начнём?" when Day 1 is already finished, got: "${result}"`);
+  assert.ok(result.includes('Буду ждать') || result.includes('справились') || result.includes('Отдыхаем'), 'Should indicate completion/waiting for tomorrow');
+});
+
 
 
 
