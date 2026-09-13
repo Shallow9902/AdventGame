@@ -113,9 +113,11 @@
   }
 
   function normalizeGift(g, i) {
+    var num = g.num != null ? g.num : (parseInt(String(g.id).replace(/\D/g, ""), 10) || (i + 1));
     return {
       id: g.id != null ? String(g.id) : "auto" + i,
-      title: g.title || "Подарок #" + (i + 1),
+      num: num,
+      title: g.title || "Подарок #" + num,
       text: g.text || "",
       photo: g.photo || "",
       link: g.link || "",
@@ -1181,16 +1183,18 @@
     var grid = $("finalGrid");
     grid.innerHTML = "";
     state.givenLog.forEach(function (g) {
-      var item = makeEl("div", "final-item");
+      var num = g.num || parseInt(String(g.id).replace(/\D/g, ""), 10) || "?";
+      var item = makeEl("div", "final-item secret");
       if (g.photo) {
         var img = makeEl("img");
         img.src = g.photo;
         img.onerror = function () { img.remove(); };
         item.appendChild(img);
       } else {
-        item.appendChild(makeEl("div", "fin-noimg", "GIFT"));
+        item.appendChild(makeEl("div", "fin-noimg", "№ " + num));
       }
-      item.appendChild(makeEl("div", "fin-t", g.title));
+      item.appendChild(makeEl("div", "fin-secret-badge", "№ " + num));
+      item.appendChild(makeEl("div", "fin-t", "Подарок №" + num));
       grid.appendChild(item);
     });
 
@@ -1341,32 +1345,36 @@
 
   function showGiftModal(gift, dayIdx) {
     $("modalDay").textContent = "ДЕНЬ " + (dayIdx + 1);
-    $("modalTitle").textContent = gift.title;
-    $("modalText").textContent = gift.text || "";
+    var giftNum = gift.num || parseInt(String(gift.id).replace(/\D/g, ""), 10) || (dayIdx + 1);
+
+    $("modalTitle").textContent = "Секретный подарок №" + giftNum;
+    $("modalText").textContent = "Содержимое засекречено, чтобы сохранить сюрприз!\nНазови номер №" + giftNum + ", чтобы забрать подарок в реальности 🎁";
 
     var photoBox = $("modalPhoto");
+    photoBox.className = "modal-photo secret";
     photoBox.innerHTML = "";
     if (gift.photo) {
       var img = makeEl("img");
       img.src = gift.photo;
-      img.alt = "Подарок";
+      img.alt = "Секретный подарок";
       img.onerror = function () {
         photoBox.innerHTML = "";
-        photoBox.appendChild(makeEl("div", "ph-fallback", "GIFT"));
+        photoBox.appendChild(makeEl("div", "ph-fallback", "№ " + giftNum));
       };
       photoBox.appendChild(img);
     } else {
-      photoBox.appendChild(makeEl("div", "ph-fallback", "GIFT"));
+      photoBox.appendChild(makeEl("div", "ph-fallback", "№ " + giftNum));
     }
 
+    var badge = makeEl("div", "gift-secret-badge");
+    badge.appendChild(makeEl("span", "gift-secret-icon", "🔒"));
+    badge.appendChild(makeEl("span", "gift-secret-number", "№ " + giftNum));
+    badge.appendChild(makeEl("span", "gift-secret-tag", "ЗАСЕКРЕЧЕНО"));
+    photoBox.appendChild(badge);
+
     var link = $("modalLink");
-    if (gift.link) {
-      link.href = gift.link;
-      link.classList.remove("hidden");
-    } else {
-      link.classList.add("hidden");
-      link.removeAttribute("href");
-    }
+    link.classList.add("hidden");
+    link.removeAttribute("href");
 
     var modal = $("modal");
     modal.classList.remove("hidden");
@@ -1383,9 +1391,10 @@
   }
 
   function grant(gift, dayIdx) {
+    var giftNum = gift.num || parseInt(String(gift.id).replace(/\D/g, ""), 10) || (dayIdx + 1);
     if (state.given.indexOf(gift.id) === -1) state.given.push(gift.id);
     if (state.givenDay.indexOf(dayIdx) === -1) state.givenDay.push(dayIdx);
-    state.givenLog.push({ id: gift.id, title: gift.title, photo: gift.photo });
+    state.givenLog.push({ id: gift.id, num: giftNum, title: "Подарок №" + giftNum, originalTitle: gift.title, photo: gift.photo });
     state.won = state.won.filter(function (d) { return d !== dayIdx; });
     save();
     updateGrutikBar();

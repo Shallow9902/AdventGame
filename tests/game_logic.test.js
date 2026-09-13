@@ -399,4 +399,20 @@ test('Companion lines: All GRUTIK_LINES follow canonical Groot speech with trans
   }
 });
 
+test('Secret gifts: won gifts are blurred and classified with gift numbers', () => {
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  assert.ok(appCode.includes('Секретный подарок №'), 'Modal title should display secret gift number');
+  assert.ok(appCode.includes('gift-secret-badge'), 'Modal should create a secret badge');
+  assert.ok(appCode.includes('modal-photo secret'), 'Photo box should have secret class for blur');
+  assert.ok(appCode.includes('final-item secret'), 'Final grid should render blurred secret items');
+
+  // Verify CSS contains blur filters
+  const cssCode = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+  assert.ok(cssCode.includes('.modal-photo.secret img'), 'CSS should have .modal-photo.secret img selector');
+  assert.ok(cssCode.includes('filter: blur'), 'CSS should have blur filter');
+  assert.ok(cssCode.includes('.gift-secret-number'), 'CSS should style gift secret number');
+});
+
+
+
 

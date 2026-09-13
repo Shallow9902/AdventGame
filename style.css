@@ -1074,12 +1074,21 @@ html.block-drag-active body { overflow: hidden; overscroll-behavior: none; }
 }
 .modal-close { position: absolute; top: 10px; right: 11px; width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 50%; cursor: pointer; color: var(--ink); font-size: 21px; background: rgba(255,255,255,.05); }
 .modal-day { margin-bottom: 12px; color: var(--rose); font-size: 10px; font-weight: 900; letter-spacing: .17em; }
-.modal-photo { margin: 0 auto 15px; }
+.modal-photo { position: relative; overflow: hidden; border-radius: 17px; margin: 0 auto 15px; background: rgba(0, 0, 0, .3); }
 .modal-photo img { width: 100%; max-height: 280px; display: block; object-fit: cover; border-radius: 17px; }
+.modal-photo.secret img { filter: blur(18px) saturate(1.25) brightness(0.88); transform: scale(1.14); user-select: none; pointer-events: none; }
+.gift-secret-badge { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: radial-gradient(circle at center, rgba(16, 11, 17, 0.45) 0%, rgba(16, 11, 17, 0.75) 100%); pointer-events: none; }
+.gift-secret-icon { font-size: 32px; filter: drop-shadow(0 4px 12px rgba(243, 93, 145, 0.6)); animation: pop 0.4s ease both; }
+.gift-secret-number { font-size: 36px; font-weight: 900; letter-spacing: 0.04em; color: #fff; text-shadow: 0 4px 20px rgba(243, 93, 145, 0.8), 0 2px 6px rgba(0, 0, 0, 0.7); }
+.gift-secret-tag { font-size: 10px; font-weight: 800; letter-spacing: 0.2em; color: var(--rose); padding: 3px 12px; border-radius: 99px; background: rgba(243, 93, 145, 0.18); border: 1px solid rgba(243, 93, 145, 0.35); box-shadow: 0 0 15px rgba(243, 93, 145, 0.2); }
 .ph-fallback { height: 180px; display: grid; place-items: center; border-radius: 17px; color: var(--rose); font-size: 12px; font-weight: 900; letter-spacing: .2em; background: linear-gradient(145deg, rgba(243,93,145,.15), rgba(157,107,255,.1)); }
 .modal-title { margin-bottom: 8px; font-size: 23px; }
 .modal-text { margin-bottom: 17px; color: var(--muted); font-size: 14px; line-height: 1.6; white-space: pre-line; }
 .modal-link { text-decoration: none; }
+
+.final-item.secret { position: relative; overflow: hidden; }
+.final-item.secret img { filter: blur(14px) saturate(1.2) brightness(0.88); transform: scale(1.15); }
+.fin-secret-badge { position: absolute; top: 6px; left: 6px; padding: 2px 7px; font-size: 10px; font-weight: 900; color: #fff; background: rgba(243, 93, 145, 0.88); border-radius: 6px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); z-index: 2; }
 
 #fxLayer { position: absolute; inset: 0; z-index: 10; overflow: hidden; pointer-events: none; }
 .fx-flash { position: absolute; inset: 0; background: #fff; animation: fxFlash .42s ease forwards; }
