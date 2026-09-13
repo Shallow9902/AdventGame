@@ -254,12 +254,12 @@ test('lineForDay: Companion speech lines for normal and preview modes', () => {
   };
 
   const cleanState = { venomInfected: false, venomControlled: false, finalForm: false };
-  assert.equal(createLineForDay(cleanState, 3)(4), "Я есть Грутик! ...А МЫ — ВЕНОМ.", 'Preview Day 4 line');
-  assert.equal(createLineForDay(cleanState, 4)(5), "Два голоса. Одна задача. Пока работает.", 'Preview Day 5 line');
-  assert.equal(createLineForDay(cleanState, 5)(6), "Два голоса. Одна задача. Пока работает.", 'Preview Day 6 line before final victory');
+  assert.equal(createLineForDay(cleanState, 3)(4), "Я есть Грутик!\n(...А МЫ — ВЕНОМ.)", 'Preview Day 4 line');
+  assert.equal(createLineForDay(cleanState, 4)(5), "Я есть Грутик.\n(Два голоса. Одна задача. Пока работает.)", 'Preview Day 5 line');
+  assert.equal(createLineForDay(cleanState, 5)(6), "Я есть Грутик.\n(Два голоса. Одна задача. Пока работает.)", 'Preview Day 6 line before final victory');
 
   const wonState = { venomInfected: true, venomControlled: true, finalForm: true };
-  assert.equal(createLineForDay(wonState, 5)(6), "Я есть Грутик. Мы всё ещё здесь.", 'Preview Day 6 line after final victory');
+  assert.equal(createLineForDay(wonState, 5)(6), "Я есть Грутик.\n(Мы всё ещё здесь.)", 'Preview Day 6 line after final victory');
 });
 
 test('Story Choice System: C() step constructor, choices in INTRO, GREET, POSTWIN, AFTERGIFT, FINAL_SCENE', () => {

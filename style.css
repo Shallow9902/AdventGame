@@ -235,6 +235,32 @@ main.without-companion .screen { grid-column: 1; }
   font-size: clamp(16px, 2.5vw, 20px);
   line-height: 1.55;
 }
+.story-line.has-trans {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.story-line .groot-voice {
+  font-size: clamp(17px, 2.7vw, 21px);
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: .02em;
+}
+.story-line .groot-trans,
+.g-bubble .groot-trans {
+  font-size: clamp(13px, 2vw, 15px);
+  font-weight: 500;
+  font-style: italic;
+  color: var(--muted);
+  opacity: .9;
+}
+.g-bubble .groot-voice {
+  display: block;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 2px;
+}
 .story-line.raw {
   color: var(--rose);
   font-size: clamp(34px, 8vw, 62px);
