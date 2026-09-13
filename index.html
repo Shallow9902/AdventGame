@@ -40,6 +40,11 @@
   </div>
 
   <div id="screenGame" class="screen">
+    <div class="game-top-nav hidden" id="gameTopNav">
+      <button class="btn btn-replay-exit" id="gameExitBtn" type="button">
+        <span class="btn-icon">←</span> Вернуться к Грутику 💤
+      </button>
+    </div>
     <div class="game-panel" id="gameArea"></div>
   </div>
 
@@ -61,7 +66,15 @@
       <h2 id="waitTitle">На сегодня всё</h2>
       <p id="waitText">Грутик сладко спит и набирается сил. Следующий подарок откроется завтра!</p>
       <div id="waitCount" class="wait-count"></div>
-      <button class="btn big hidden" id="waitPlayBlock" style="margin-top:16px;">🎮 Block Blast (бесконечный режим)</button>
+
+      <div id="waitReplaySection" class="wait-replay-section hidden">
+        <div class="wait-replay-header">
+          <span class="wait-replay-kicker">ИГРОВАЯ КОМНАТА</span>
+          <h3 class="wait-replay-title">🎮 Пройденные мини-игры</h3>
+          <p class="wait-replay-desc">Пока малыш сладко спит, можно сыграть в любую открытую мини-игру:</p>
+        </div>
+        <div id="waitGamesList" class="wait-games-grid"></div>
+      </div>
     </div>
   </div>
 
@@ -77,6 +90,14 @@
           <p id="finalGrootSay"></p>
         </div>
         <canvas id="finalGrutik" width="480" height="440"></canvas>
+      </div>
+      <div id="finalReplaySection" class="wait-replay-section final-replay-section">
+        <div class="wait-replay-header">
+          <span class="wait-replay-kicker">АРКАДА</span>
+          <h3 class="wait-replay-title">🎮 Все мини-игры приключения</h3>
+          <p class="wait-replay-desc">Сыграй в любое испытание ещё раз в свободном режиме:</p>
+        </div>
+        <div id="finalGamesList" class="wait-games-grid"></div>
       </div>
     </div>
   </div>

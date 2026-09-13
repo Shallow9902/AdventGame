@@ -33,6 +33,16 @@ function GameBase(container, opts, onWin) {
   head.appendChild(meta);
   this.stats = gameEl("div", "game-stats");
   head.appendChild(this.stats);
+  if (this.opts.isReplay || this.opts.onExit) {
+    var exitBtn = gameEl("button", "game-btn-exit", "✕ Назад");
+    exitBtn.type = "button";
+    exitBtn.setAttribute("title", "Вернуться к Грутику");
+    var self = this;
+    exitBtn.addEventListener("click", function () {
+      if (self.opts.onExit) self.opts.onExit();
+    });
+    head.appendChild(exitBtn);
+  }
   this.root.appendChild(head);
 
   this.arena = gameEl("div", "game-arena");
@@ -529,7 +539,13 @@ function BlockBlastGame(container, opts, onWin) {
 
   var wheelShortcut = gameEl("button", "block-btn-wheel" + (this.endless ? "" : " hidden"), this.endless ? "Выйти ✕" : "К колесу 🎡");
   wheelShortcut.setAttribute("type", "button");
-  wheelShortcut.addEventListener("click", function () { self.complete("Поле корней очищено"); });
+  wheelShortcut.addEventListener("click", function () {
+    if (self.opts.onExit && (self.endless || self.opts.isReplay)) {
+      self.opts.onExit();
+    } else {
+      self.complete("Поле корней очищено");
+    }
+  });
   ctrl.appendChild(wheelShortcut);
   this.wheelShortcut = wheelShortcut;
   if (head) head.appendChild(ctrl);
@@ -868,12 +884,17 @@ BlockBlastGame.prototype.showVictoryChoice = function () {
   card.appendChild(gameEl("p", "block-win-desc", "Ты очистила 4 линии и разблокировала колесо фортуны! Можно перейти к подарку прямо сейчас или продолжить играть на рекорд очков."));
 
   var actions = gameEl("div", "block-win-actions");
-  var wheelBtn = gameEl("button", "btn btn-primary big", "К колесу 🎡");
+  var exitLabel = (this.opts.isReplay || this.opts.onExit) ? "Вернуться 💤" : "К колесу 🎡";
+  var wheelBtn = gameEl("button", "btn btn-primary big", exitLabel);
   var endlessBtn = gameEl("button", "btn big", "Бесконечный режим 🏆");
 
   wheelBtn.addEventListener("click", function () {
     overlay.remove();
-    self.complete("Поле корней очищено");
+    if (self.opts.onExit && self.opts.isReplay) {
+      self.opts.onExit();
+    } else {
+      self.complete("Поле корней очищено");
+    }
   });
 
   endlessBtn.addEventListener("click", function () {
@@ -910,7 +931,8 @@ BlockBlastGame.prototype.showGameOver = function () {
 
   var actions = gameEl("div", "block-win-actions");
   var restartBtn = gameEl("button", "btn big", "Сыграть заново ↺");
-  var wheelBtn = gameEl("button", "btn btn-primary big", "К колесу 🎡");
+  var exitLabel = (this.opts.isReplay || this.opts.onExit) ? "Вернуться 💤" : "К колесу 🎡";
+  var wheelBtn = gameEl("button", "btn btn-primary big", exitLabel);
 
   restartBtn.addEventListener("click", function () {
     overlay.remove();
@@ -919,7 +941,11 @@ BlockBlastGame.prototype.showGameOver = function () {
 
   wheelBtn.addEventListener("click", function () {
     overlay.remove();
-    self.complete("Поле корней очищено");
+    if (self.opts.onExit && (self.endless || self.opts.isReplay)) {
+      self.opts.onExit();
+    } else {
+      self.complete("Поле корней очищено");
+    }
   });
 
   actions.appendChild(restartBtn);

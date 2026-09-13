@@ -164,12 +164,12 @@
   }
 
   var dayGames = [
-    { type: "memory", mark: "01", kicker: "ДЕНЬ 01 · ПАМЯТЬ", title: "Наши моменты", instruction: "Найди двенадцать пар фотографий.", photos: SITE_CONFIG.memoryPhotos, centerPhoto: SITE_CONFIG.memoryCenterPhoto },
-    { type: "blockblast", mark: "02", kicker: "ДЕНЬ 02 · ТАКТИКА", title: "Block Blast: корни", instruction: "Перетаскивай фигуры и собирай полные линии.", lines: 4 },
-    { type: "echo", mark: "03", kicker: "ДЕНЬ 03 · ПАМЯТЬ", title: "Эхо сигнала", instruction: "Запомни код, который нашёл Грутик.", lengths: [3, 4, 5, 6] },
-    { type: "photoPuzzle", mark: "04", kicker: "ДЕНЬ 04 · ПАМЯТЬ", title: "Собери нашу фотографию", instruction: "Соедини шестнадцать фигурных деталей.", photo: SITE_CONFIG.couplePhoto, size: 4 },
-    { type: "circuit", mark: "05", kicker: "ДЕНЬ 05 · ЛОГИКА", title: "Живая схема", instruction: "Верни питание колесу." },
-    { type: "finale", mark: "06", kicker: "ДЕНЬ 06 · ФИНАЛ", title: "Протокол SONECHKA", instruction: "Три фазы. Один финальный запуск." }
+    { type: "memory", mark: "01", icon: "🌸", badge: "Память", desc: "12 пар наших фотографий", kicker: "ДЕНЬ 01 · ПАМЯТЬ", title: "Наши моменты", instruction: "Найди двенадцать пар фотографий.", photos: SITE_CONFIG.memoryPhotos, centerPhoto: SITE_CONFIG.memoryCenterPhoto },
+    { type: "blockblast", mark: "02", icon: "🌿", badge: "Тактика", desc: "Бесконечный режим на рекорд", kicker: "ДЕНЬ 02 · ТАКТИКА", title: "Block Blast: корни", instruction: "Перетаскивай фигуры и собирай полные линии.", lines: 4 },
+    { type: "echo", mark: "03", icon: "⚡", badge: "Память", desc: "Код сигналов Грутика", kicker: "ДЕНЬ 03 · ПАМЯТЬ", title: "Эхо сигнала", instruction: "Запомни код, который нашёл Грутик.", lengths: [3, 4, 5, 6] },
+    { type: "photoPuzzle", mark: "04", icon: "🧩", badge: "Пазл", desc: "Фотопазл из 16 кусочков", kicker: "ДЕНЬ 04 · ПАМЯТЬ", title: "Собери нашу фотографию", instruction: "Соедини шестнадцать фигурных деталей.", photo: SITE_CONFIG.couplePhoto, size: 4 },
+    { type: "circuit", mark: "05", icon: "💡", badge: "Логика", desc: "Восстановление цепи питания", kicker: "ДЕНЬ 05 · ЛОГИКА", title: "Живая схема", instruction: "Верни питание колесу." },
+    { type: "finale", mark: "06", icon: "🚀", badge: "Финал", desc: "3 фазы протокола SONECHKA", kicker: "ДЕНЬ 06 · ФИНАЛ", title: "Протокол SONECHKA", instruction: "Три фазы. Один финальный запуск." }
   ];
 
 
@@ -1143,13 +1143,146 @@
       currentGame.destroy();
       currentGame = null;
     }
+    var topNav = $("gameTopNav");
+    if (topNav) topNav.classList.add("hidden");
     ["screenGame", "screenWheel", "screenWait", "screenFinal", "screenStory"].forEach(function (id) {
-      $(id).classList.remove("active");
+      var el = $(id);
+      if (el) el.classList.remove("active");
     });
+  }
+
+  function isDayCompleted(i) {
+    if (!state) return false;
+    if (state.givenDay && state.givenDay.indexOf(i) !== -1) return true;
+    if (state.won && state.won.indexOf(i) !== -1) return true;
+    if (window.__previewDay != null && i < window.__previewDay) return true;
+    return false;
+  }
+
+  function renderReplayCards(containerId) {
+    var container = $(containerId);
+    if (!container) return 0;
+    container.innerHTML = "";
+    var count = 0;
+    dayGames.forEach(function (cfg, idx) {
+      if (!isDayCompleted(idx)) return;
+      count++;
+      var card = makeEl("button", "replay-game-card");
+      card.type = "button";
+      card.setAttribute("data-day", String(idx));
+
+      var iconEl = makeEl("div", "replay-game-icon", cfg.icon || "🎮");
+      card.appendChild(iconEl);
+
+      var infoEl = makeEl("div", "replay-game-info");
+      var topEl = makeEl("div", "replay-game-top");
+      topEl.appendChild(makeEl("span", "replay-game-day", "ДЕНЬ " + cfg.mark));
+      topEl.appendChild(makeEl("span", "replay-game-badge", cfg.badge || "ИГРА"));
+      infoEl.appendChild(topEl);
+
+      infoEl.appendChild(makeEl("div", "replay-game-title", cfg.title));
+
+      var descText = cfg.desc || "";
+      if (cfg.type === "blockblast") {
+        try {
+          var best = localStorage.getItem("advent_blockblast_best");
+          if (best) {
+            descText = "Бесконечный режим · Рекорд: " + best;
+          }
+        } catch (e) {}
+      }
+      infoEl.appendChild(makeEl("div", "replay-game-desc", descText));
+      card.appendChild(infoEl);
+
+      var playBtn = makeEl("div", "replay-game-arrow", "▶");
+      card.appendChild(playBtn);
+
+      card.onclick = function () {
+        launchReplayGame(idx);
+      };
+      container.appendChild(card);
+    });
+    return count;
+  }
+
+  function launchReplayGame(dayIdx) {
+    hideScreens();
+    $("screenGame").classList.add("active");
+    var topNav = $("gameTopNav");
+    if (topNav) topNav.classList.remove("hidden");
+
+    var exitBtn = $("gameExitBtn");
+    if (exitBtn) {
+      exitBtn.onclick = function () {
+        if (currentGame) {
+          currentGame.destroy();
+          currentGame = null;
+        }
+        hideScreens();
+        render();
+      };
+    }
+
+    var cfg = dayGames[dayIdx % dayGames.length];
+    var copy = {};
+    for (var k in cfg) copy[k] = cfg[k];
+    copy.stage = grutikStage();
+    copy.isReplay = true;
+    if (cfg.type === "blockblast") {
+      copy.endless = true;
+    }
+    copy.onExit = function () {
+      if (currentGame) {
+        currentGame.destroy();
+        currentGame = null;
+      }
+      hideScreens();
+      render();
+    };
+
+    var area = $("gameArea");
+    area.innerHTML = "";
+    currentGame = Games.create(cfg.type, area, copy, function () {
+      showReplayWin(cfg, dayIdx);
+    });
+  }
+
+  function showReplayWin(cfg, dayIdx) {
+    var area = $("gameArea");
+    if (!area) return;
+    var overlay = makeEl("div", "replay-win-overlay");
+    var card = makeEl("div", "replay-win-card");
+    card.appendChild(makeEl("div", "replay-win-icon", cfg.icon || "🌸"));
+    card.appendChild(makeEl("h3", "replay-win-title", "Отлично сыграно!"));
+    card.appendChild(makeEl("p", "replay-win-desc", "Испытание «" + cfg.title + "» успешно пройдено!"));
+
+    var actions = makeEl("div", "replay-win-actions");
+    var restartBtn = makeEl("button", "btn big", "Сыграть заново ↺");
+    restartBtn.onclick = function () {
+      launchReplayGame(dayIdx);
+    };
+
+    var backBtn = makeEl("button", "btn btn-primary big", "Вернуться к Грутику 💤");
+    backBtn.onclick = function () {
+      if (currentGame) {
+        currentGame.destroy();
+        currentGame = null;
+      }
+      hideScreens();
+      render();
+    };
+
+    actions.appendChild(restartBtn);
+    actions.appendChild(backBtn);
+    card.appendChild(actions);
+    overlay.appendChild(card);
+    try { confetti(); } catch (e) {}
   }
 
   function renderGame(dayIdx) {
     $("screenGame").classList.add("active");
+    var topNav = $("gameTopNav");
+    if (topNav) topNav.classList.add("hidden");
     var cfg = dayGames[dayIdx % dayGames.length];
     var copy = {};
     for (var k in cfg) copy[k] = cfg[k];
@@ -1203,22 +1336,10 @@
       };
     }
 
-    var blockPlayBtn = $("waitPlayBlock");
-    if (blockPlayBtn) {
-      var canPlayBlock = state.givenDay.indexOf(1) !== -1 || state.won.indexOf(1) !== -1;
-      blockPlayBtn.classList.toggle("hidden", !canPlayBlock);
-      blockPlayBtn.onclick = function () {
-        hideScreens();
-        $("screenGame").classList.add("active");
-        var cfg = dayGames[1];
-        var copy = {};
-        for (var k in cfg) copy[k] = cfg[k];
-        copy.stage = grutikStage();
-        copy.endless = true;
-        currentGame = Games.create(cfg.type, $("gameArea"), copy, function () {
-          render();
-        });
-      };
+    var replayCount = renderReplayCards("waitGamesList");
+    var waitReplaySec = $("waitReplaySection");
+    if (waitReplaySec) {
+      waitReplaySec.classList.toggle("hidden", replayCount === 0);
     }
   }
 
@@ -1254,6 +1375,8 @@
       n = (n + 1) % 2;
       finalGrootSay(n);
     };
+
+    renderReplayCards("finalGamesList");
   }
 
   var FINAL_LINES = [

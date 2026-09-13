@@ -23,8 +23,15 @@ function loadContext() {
           children: [],
           setAttribute(k, v) { this[k] = v; },
           appendChild(child) { this.children.push(child); return child; },
-          addEventListener() {},
+          listeners: {},
+          addEventListener(ev, fn) {
+            (this.listeners[ev] = this.listeners[ev] || []).push(fn);
+          },
           removeEventListener() {},
+          click() {
+            if (this.onclick) this.onclick();
+            (this.listeners['click'] || []).forEach(fn => fn());
+          },
           querySelector(sel) {
             if (sel.startsWith('.')) {
               const cls = sel.slice(1);
@@ -463,6 +470,146 @@ test('Sleeping Grutik: sleeping animation, particles, and pose after day complet
   const htmlCode = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.ok(htmlCode.includes('waitGrutikCanvas'), 'index.html should have waitGrutikCanvas element');
 });
+
+test('Replay Minigames Hub: Elements in index.html, style.css, and app.js logic', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.ok(html.includes('id="waitReplaySection"'), 'index.html should have waitReplaySection');
+  assert.ok(html.includes('id="waitGamesList"'), 'index.html should have waitGamesList');
+  assert.ok(html.includes('id="finalReplaySection"'), 'index.html should have finalReplaySection');
+  assert.ok(html.includes('id="finalGamesList"'), 'index.html should have finalGamesList');
+  assert.ok(html.includes('id="gameTopNav"'), 'index.html should have gameTopNav');
+  assert.ok(html.includes('id="gameExitBtn"'), 'index.html should have gameExitBtn');
+
+  const css = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+  assert.ok(css.includes('.wait-replay-section'), 'style.css should style wait-replay-section');
+  assert.ok(css.includes('.replay-game-card'), 'style.css should style replay-game-card');
+  assert.ok(css.includes('.btn-replay-exit'), 'style.css should style btn-replay-exit');
+  assert.ok(css.includes('.game-btn-exit'), 'style.css should style game-btn-exit');
+  assert.ok(css.includes('.replay-win-overlay'), 'style.css should style replay-win-overlay');
+
+  const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  assert.ok(app.includes('function renderReplayCards'), 'app.js should define renderReplayCards');
+  assert.ok(app.includes('function launchReplayGame'), 'app.js should define launchReplayGame');
+  assert.ok(app.includes('function showReplayWin'), 'app.js should define showReplayWin');
+  assert.ok(app.includes('function isDayCompleted'), 'app.js should define isDayCompleted');
+});
+
+test('GameBase & BlockBlast: Replay exit buttons and callbacks', () => {
+  const ctx = loadContext();
+  let exitCalled = false;
+  const mockContainer = {
+    children: [],
+    innerHTML: '',
+    appendChild(child) { this.children.push(child); return child; }
+  };
+
+  // 1. MemoryPairsGame with isReplay and onExit
+  const game = ctx.Games.create('memory', mockContainer, {
+    isReplay: true,
+    onExit: () => { exitCalled = true; }
+  }, () => {});
+
+  // Find exit button in game-head
+  const head = game.root.children.find(c => c.className && c.className.includes('game-head'));
+  assert.ok(head, 'game-head should exist in root');
+  const exitBtn = head.children.find(c => c.className && c.className.includes('game-btn-exit'));
+  assert.ok(exitBtn, 'game-btn-exit button should be created in game-head');
+
+  // Trigger exit on Memory game
+  exitBtn.click();
+  assert.equal(exitCalled, true, 'Clicking game-btn-exit should invoke onExit');
+
+  // Let's test calling onExit on BlockBlast
+  let blockExitCalled = false;
+  const blockContainer = {
+    children: [],
+    innerHTML: '',
+    appendChild(child) { this.children.push(child); return child; }
+  };
+  const blockGame = ctx.Games.create('blockblast', blockContainer, {
+    isReplay: true,
+    endless: true,
+    onExit: () => { blockExitCalled = true; }
+  }, () => {});
+
+  assert.ok(blockGame.wheelShortcut, 'BlockBlast should have wheelShortcut button');
+  assert.equal(blockGame.wheelShortcut.textContent, 'Выйти ✕');
+  blockGame.wheelShortcut.click();
+  assert.equal(blockExitCalled, true, 'Clicking BlockBlast wheelShortcut in replay mode should invoke onExit');
+});
+
+test('renderReplayCards: Generates correct cards for completed days', () => {
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+  // Extract isDayCompleted and renderReplayCards functions, and dayGames array
+  const dayGamesMatch = appCode.match(/var dayGames = \[([\s\S]*?)\];/);
+  assert.ok(dayGamesMatch, 'dayGames should exist in app.js');
+
+  const isDayCompletedMatch = appCode.match(/function isDayCompleted\(i\) \{([\s\S]*?)\n  \}/);
+  assert.ok(isDayCompletedMatch, 'isDayCompleted should exist in app.js');
+
+  const renderReplayCardsMatch = appCode.match(/function renderReplayCards\(containerId\) \{([\s\S]*?)\n  \}/);
+  assert.ok(renderReplayCardsMatch, 'renderReplayCards should exist in app.js');
+
+  const makeEl = (tag, cls, text) => {
+    const el = {
+      tagName: tag.toUpperCase(),
+      className: cls || '',
+      textContent: text || '',
+      children: [],
+      setAttribute(k, v) { this[k] = v; },
+      appendChild(c) { this.children.push(c); return c; }
+    };
+    return el;
+  };
+
+  const testHarness = (state, previewDay, bestScore) => {
+    const container = {
+      children: [],
+      innerHTML: '',
+      appendChild(c) { this.children.push(c); return c; }
+    };
+    const elements = {
+      testList: container
+    };
+    const $ = (id) => elements[id] || null;
+    const localStorage = {
+      getItem: (k) => k === 'advent_blockblast_best' ? bestScore : null
+    };
+
+    const fn = new Function('state', 'window', 'makeEl', '$', 'localStorage', 'SITE_CONFIG', 'launchReplayGame', `
+      var dayGames = [${dayGamesMatch[1]}];
+      ${isDayCompletedMatch[0]}
+      ${renderReplayCardsMatch[0]}
+      return renderReplayCards('testList');
+    `);
+
+    const count = fn(state, { __previewDay: previewDay }, makeEl, $, localStorage, {}, () => {});
+    return { count, container };
+  };
+
+  // Case 1: Only Day 1 completed (givenDay: [0])
+  const res1 = testHarness({ givenDay: [0], won: [0] }, null, null);
+  assert.equal(res1.count, 1, 'Should render 1 card when only Day 1 is done');
+  assert.equal(res1.container.children.length, 1);
+  assert.equal(res1.container.children[0]['data-day'], '0');
+
+  // Case 2: Days 1 and 2 completed (givenDay: [0, 1]), with best score 450
+  const res2 = testHarness({ givenDay: [0, 1], won: [0, 1] }, null, '450');
+  assert.equal(res2.count, 2, 'Should render 2 cards when Days 1 and 2 are done');
+  const day2Card = res2.container.children[1];
+  assert.equal(day2Card['data-day'], '1');
+
+  // Case 3: All 6 days completed (givenDay: [0, 1, 2, 3, 4, 5])
+  const res6 = testHarness({ givenDay: [0, 1, 2, 3, 4, 5], won: [0, 1, 2, 3, 4, 5] }, null, '1200');
+  assert.equal(res6.count, 6, 'Should render 6 cards when all days are done');
+
+  // Case 4: Nothing completed yet (givenDay: [], won: [])
+  const res0 = testHarness({ givenDay: [], won: [] }, null, null);
+  assert.equal(res0.count, 0, 'Should render 0 cards before any day is finished');
+});
+
+
 
 
 
