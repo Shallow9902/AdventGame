@@ -110,3 +110,13 @@ npm test
 ```bash
 node --test tests/game_logic.test.js
 ```
+
+---
+
+### 2026-09-13: Инициализация репозитория и публикация на GitHub
+
+- **Git & Репозиторий**:
+  - Создан файл `.gitignore` (исключение `node_modules/`, `.DS_Store`, `Thumbs.db`, `*.log`).
+  - Проверены относительные пути к статическим ресурсам (`photos/`, стилям и скриптам) для совместимости с GitHub Pages.
+  - Настроен удалённый репозиторий `origin`: `https://github.com/Shallow9902/AdventGame.git`.
+  - Выполнен первый коммит и отправка ветки `main` в GitHub.
