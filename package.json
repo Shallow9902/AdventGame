@@ -1,0 +1,11 @@
+{
+  "name": "advent-game",
+  "version": "1.0.0",
+  "description": "Advent game for Sonechka with Groot and mini-games",
+  "scripts": {
+    "test": "node --test tests/game_logic.test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

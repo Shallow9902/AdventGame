@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Подарки для тебя</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="site-title" id="siteTitle"></div>
+    <div class="progress" id="progress"></div>
+    <div class="day-title" id="dayTitle"></div>
+  </div>
+</header>
+
+<main>
+  <div class="grutik-bar" id="grutikBar">
+    <canvas id="grutikCanvas" width="280" height="240"></canvas>
+    <div class="g-bubble">
+      <div class="g-tail"></div>
+      <p id="grutikSay"></p>
+    </div>
+  </div>
+
+  <div id="screenStory" class="screen">
+    <div class="story-card">
+      <div class="story-stage" id="storyStage">
+        <canvas id="storyCanvas" width="600" height="520"></canvas>
+        <div id="fxLayer"></div>
+      </div>
+      <p class="story-speaker" id="storySpeaker"></p>
+      <p class="story-line" id="storyLine"></p>
+      <div class="story-next" id="storyNext">▼</div>
+      <button class="btn btn-primary big" id="storyBtn"></button>
+      <div class="story-choices hidden" id="storyChoices"></div>
+    </div>
+  </div>
+
+  <div id="screenGame" class="screen">
+    <div class="game-panel" id="gameArea"></div>
+  </div>
+
+  <div id="screenWheel" class="screen screen-wheel">
+    <p class="wheel-hint" id="wheelHint">Крути и забирай подарок дня!</p>
+    <div class="wheel-wrap">
+      <div class="pointer"></div>
+      <canvas id="wheel" width="720" height="720"></canvas>
+    </div>
+    <button class="btn btn-primary big" id="spinBtn">Крутить колесо</button>
+  </div>
+
+  <div id="screenWait" class="screen screen-wait">
+    <div class="wait-card">
+      <div class="wait-emoji" id="waitEmoji">PAUSE</div>
+      <h2 id="waitTitle">Спой-ка сегодня уже всё получила</h2>
+      <p id="waitText">Новый подарок откроется завтра</p>
+      <div id="waitCount" class="wait-count"></div>
+      <button class="btn big hidden" id="waitPlayBlock" style="margin-top:16px;">🎮 Block Blast (бесконечный режим)</button>
+    </div>
+  </div>
+
+  <div id="screenFinal" class="screen screen-final">
+    <div class="wait-card">
+      <div class="wait-emoji">FINAL</div>
+      <h2 class="final-letter-head" id="finalLetterHead">Для Сонечки</h2>
+      <p id="finalText" class="final-path"></p>
+      <div class="final-letter" id="finalLetter"></div>
+      <div class="final-grid" id="finalGrid"></div>
+      <div class="final-groot" id="finalGrutikWrap">
+        <div class="f-bubble">
+          <p id="finalGrootSay"></p>
+        </div>
+        <canvas id="finalGrutik" width="480" height="440"></canvas>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-card">
+    <button class="modal-close" id="modalClose">&times;</button>
+    <div class="modal-day" id="modalDay"></div>
+    <div class="modal-photo" id="modalPhoto"></div>
+    <h2 class="modal-title" id="modalTitle"></h2>
+    <p class="modal-text" id="modalText"></p>
+    <a class="btn btn-primary big modal-link hidden" id="modalLink" target="_blank" rel="noopener">Забрать подарок</a>
+  </div>
+</div>
+
+<div id="confettiLayer"></div>
+
+<script src="gifts.js"></script>
+<script src="grutik.js"></script>
+<script src="games.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
