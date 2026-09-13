@@ -262,3 +262,27 @@ test('lineForDay: Companion speech lines for normal and preview modes', () => {
   assert.equal(createLineForDay(wonState, 5)(6), "Я есть Грутик. Мы всё ещё здесь.", 'Preview Day 6 line after final victory');
 });
 
+test('Story Choice System: C() step constructor, choices in INTRO, GREET, POSTWIN, AFTERGIFT, FINAL_SCENE', () => {
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+  // Check C() function definition
+  assert.ok(appCode.includes('function C(key, prompt, options)'), 'C() constructor should be defined');
+
+  // Check INTRO has choices
+  assert.ok(appCode.includes('C("seed"'), 'INTRO should contain seed choice');
+  assert.ok(appCode.includes('C("intro_react"'), 'INTRO should contain intro_react choice');
+
+  // Check GREET has choices across multiple days
+  assert.ok(appCode.includes('C("day1_react"'), 'Day 1 should have reaction choice');
+  assert.ok(appCode.includes('C("day2_style"'), 'Day 2 should have style choice');
+  assert.ok(appCode.includes('C("day3_drop"'), 'Day 3 should have drop choice');
+  assert.ok(appCode.includes('C("day4_venom"'), 'Day 4 should have venom choice');
+  assert.ok(appCode.includes('C("day5_repair"'), 'Day 5 should have repair choice');
+  assert.ok(appCode.includes('C("day6_ready"'), 'Day 6 should have ready choice');
+
+  // Check POSTWIN / AFTERGIFT / FINAL choices
+  assert.ok(appCode.includes('C("venom_stay"'), 'POSTWIN Day 6 should have venom stay choice');
+  assert.ok(appCode.includes('C("day1_bye"'), 'AFTERGIFT Day 1 should have goodbye choice');
+  assert.ok(appCode.includes('C("final_words"'), 'FINAL_SCENE should have final words choice');
+});
+
