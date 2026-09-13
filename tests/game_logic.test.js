@@ -318,3 +318,85 @@ test('Calendar progression: 2026-09-14 is day 1 (index 0), 2026-09-19 is day 6 (
   assert.equal(getDayIdxForDate('2026-09-20'), 5, '20 сентября и далее -> День 6 (cap at index 5)');
 });
 
+test('Gifts configuration: 9 items, inactive 4, 7, 8, and Day 4 Venomized Groot', () => {
+  const ctx = loadContext();
+  const pool = ctx.GIFT_POOL;
+  assert.equal(pool.length, 9, 'There should be 9 gifts in GIFT_POOL');
+
+  // Verify photos and IDs
+  for (let i = 0; i < 9; i++) {
+    assert.equal(pool[i].id, `g${i + 1}`);
+    assert.equal(pool[i].photo, `photos/${i + 1}.webp`);
+  }
+
+  // Verify inactive items: 4, 7, 8
+  assert.equal(pool[3].active, false, 'Gift 4 (Принцесса Ардена) should be inactive');
+  assert.equal(pool[6].active, false, 'Gift 7 (LEGO Spider-Man) should be inactive');
+  assert.equal(pool[7].active, false, 'Gift 8 (Как приручить дракона) should be inactive');
+
+  // Verify Gift 6 is Venomized Groot with specialDay: 3
+  assert.equal(pool[5].id, 'g6');
+  assert.ok(pool[5].title.includes('Веномизированный Грут'), 'Gift 6 should be Venomized Groot');
+  assert.equal(pool[5].specialDay, 3, 'Gift 6 should be tied to Day 4 (specialDay: 3)');
+
+  // Test normalizeGift, pool() and remainingPool(dayIdx) logic from app.js
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  assert.ok(appCode.includes('normalizeGift'), 'normalizeGift should exist in app.js');
+
+  const normalizeGiftMatch = appCode.match(/function normalizeGift[\s\S]*?function remainingPool\(dayIdx\) \{[\s\S]*?\n  \}/);
+  assert.ok(normalizeGiftMatch, 'gift helper functions should match');
+
+  const fn = new Function('GIFT_POOL', 'state', `
+    ${normalizeGiftMatch[0]}
+    return { pool, remainingPool };
+  `);
+
+  const state = { given: [] };
+  const helpers = fn(pool, state);
+
+  // pool() should exclude inactive gifts (4, 7, 8)
+  const activeGifts = helpers.pool();
+  assert.equal(activeGifts.length, 6, 'There should be 6 active gifts for 6 days');
+  assert.ok(!activeGifts.some(g => ['g4', 'g7', 'g8'].includes(g.id)), 'Inactive gifts should not be in pool()');
+
+  // Days 0, 1, 2 should NOT have g6 in remainingPool
+  assert.ok(!helpers.remainingPool(0).some(g => g.id === 'g6'), 'Day 1 should not have g6');
+  assert.ok(!helpers.remainingPool(1).some(g => g.id === 'g6'), 'Day 2 should not have g6');
+  assert.ok(!helpers.remainingPool(2).some(g => g.id === 'g6'), 'Day 3 should not have g6');
+
+  // Day 3 (Day 4: Venom) MUST have g6 in remainingPool
+  const day4Rem = helpers.remainingPool(3);
+  assert.ok(day4Rem.some(g => g.id === 'g6'), 'Day 4 should include g6');
+
+  // Test pickResult logic on Day 4
+  const pickResultMatch = appCode.match(/function pickResult\(pool, dayIdx\) \{([\s\S]*?)\n  \}/);
+  assert.ok(pickResultMatch, 'pickResult function should exist');
+  const pickResult = new Function('pool', 'dayIdx', pickResultMatch[0] + '\nreturn pickResult(pool, dayIdx);');
+
+  const wonDay4 = pickResult(day4Rem, 3);
+  assert.equal(wonDay4.id, 'g6', 'pickResult on Day 4 MUST guarantee Venomized Groot (g6)');
+});
+
+test('MemoryPairsGame gate overlay: no verbose description', () => {
+  const gamesCode = fs.readFileSync(path.join(__dirname, '..', 'games.js'), 'utf8');
+  assert.ok(!gamesCode.includes('На поле спрятаны 12 пар ваших фотографий'), 'Verbose description should be removed');
+  assert.ok(gamesCode.includes('this.gate("Открыть воспоминания", "", function () {})'), 'Memory gate should be called with empty text');
+});
+
+test('Companion lines: All GRUTIK_LINES follow canonical Groot speech with translation', () => {
+  const grutikCode = fs.readFileSync(path.join(__dirname, '..', 'grutik.js'), 'utf8');
+  const match = grutikCode.match(/var GRUTIK_LINES = \[([\s\S]*?)\];/);
+  assert.ok(match, 'GRUTIK_LINES should be defined in grutik.js');
+
+  const ctx = loadContext();
+  const lines = ctx.GRUTIK_LINES;
+  assert.ok(lines.length >= 7, 'Should have at least 7 lines in GRUTIK_LINES');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    assert.ok(line.includes('Грутик'), `Line ${i} should have Groot voice: "${line}"`);
+    assert.ok(line.includes('\n('), `Line ${i} should have translation in parenthesis: "${line}"`);
+  }
+});
+
+

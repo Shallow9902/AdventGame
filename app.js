@@ -118,17 +118,26 @@
       title: g.title || "Подарок #" + (i + 1),
       text: g.text || "",
       photo: g.photo || "",
-      link: g.link || ""
+      link: g.link || "",
+      active: g.active !== false,
+      specialDay: g.specialDay
     };
   }
 
   function pool() {
-    return GIFT_POOL.map(normalizeGift);
+    return GIFT_POOL.map(normalizeGift).filter(function (g) {
+      return g.active;
+    });
   }
 
-  function remainingPool() {
+  function remainingPool(dayIdx) {
+    var d = dayIdx != null ? dayIdx : activePlayDay();
     return pool().filter(function (g) {
-      return state.given.indexOf(g.id) === -1;
+      if (state.given.indexOf(g.id) !== -1) return false;
+      if (g.specialDay != null) {
+        return d >= g.specialDay;
+      }
+      return true;
     });
   }
 
@@ -937,12 +946,12 @@
     ],
     [
       S(6),
-      L("nar", "Грутик смотрит на собранную фотографию. Затем на себя. Затем на Венома."),
-      L("gru", "Я есть Грутик?!", "Мы правда хорошо получились?"),
+      L("nar", "Грутик и Веном рассматривают подарок — фигурку Веномизированного Грута! Затем смотрят на собранное фото."),
+      L("gru", "Я есть Грутик?!", "Это же мы! Мы правда так круто смотримся?"),
       L("venom", "МЫ КРАСИВЫ."),
-      L("gru", "Я есть Грутик!", "И фото замечательное!"),
-      L("venom", "Очень красивы."),
-      L("nar", "Веном осторожно поправляет щупальцем рамку фотографии. Грутик одобрительно кивает."),
+      L("gru", "Я есть Грутик!", "И фото замечательное, и фигурка точь-в-точь!"),
+      L("venom", "Очень красивы. Симбиоз в миниатюре."),
+      L("nar", "Веном осторожно поправляет щупальцем фигурку и рамку фотографии. Грутик одобрительно кивает."),
       L("venom", "Мы умеем ценить искусство."),
       B("До завтра!")
     ],
@@ -1026,7 +1035,7 @@
 
   function afterGiftScene(day, isLast) {
     if (isLast) return FINAL_SCENE;
-    if (day === 3) return DAY4_AFTER;
+    if (day === 3) return AFTERGIFT[3];
     if (day >= 0 && day < 5) return AFTERGIFT[day];
     return [];
   }
@@ -1195,13 +1204,20 @@
   }
 
   var FINAL_LINES = [
-    "Я есть Грутик.",
-    "Мы всё ещё здесь."
+    "Я есть Грутик.\n(Спасибо за заботу!)",
+    "Я есть Грутик.\n(Мы всегда рядом.)"
   ];
 
   function finalGrootSay(n) {
     $("finalGrutik").__say = n;
-    $("finalGrootSay").textContent = FINAL_LINES[n];
+    var line = FINAL_LINES[n];
+    var el = $("finalGrootSay");
+    if (line.includes("\n")) {
+      var parts = line.split("\n");
+      el.innerHTML = '<span class="groot-voice">' + parts[0] + '</span><span class="groot-trans">' + parts.slice(1).join(" ") + '</span>';
+    } else {
+      el.textContent = line;
+    }
   }
 
 
@@ -1210,7 +1226,7 @@
   function renderWheel(dayIdx) {
     $("screenWheel").classList.add("active");
 
-    var rem = remainingPool();
+    var rem = remainingPool(dayIdx);
     $("wheelHint").textContent = "Колесо выберет один из ещё не открытых подарков.";
 
     var btn = $("spinBtn");
@@ -1279,8 +1295,17 @@
     ctx.stroke();
   }
 
-  function pickResult(pool) {
-    return pool[Math.floor(Math.random() * pool.length)];
+  function pickResult(pool, dayIdx) {
+    if (dayIdx === 3) {
+      for (var i = 0; i < pool.length; i++) {
+        if (pool[i].id === "g6") return pool[i];
+      }
+    }
+    var regular = pool.filter(function (g) {
+      return g.id !== "g6" || dayIdx === 3;
+    });
+    if (!regular.length) regular = pool;
+    return regular[Math.floor(Math.random() * regular.length)];
   }
 
   var wheelStateDisable = false;
@@ -1294,7 +1319,7 @@
     var btn = $("spinBtn");
     btn.disabled = true;
 
-    var result = pickResult(pool);
+    var result = pickResult(pool, dayIdx);
     var n = pool.length;
     var idx = pool.indexOf(result);
     var daDeg = 360 / n;
@@ -1371,7 +1396,7 @@
     }
 
     var isLast = state.givenDay.length >= DAYS;
-    var scene = gift.id === "g4" && !isLast ? AFTERGIFT[3] : afterGiftScene(dayIdx, isLast);
+    var scene = (gift.id === "g6" || dayIdx === 3) && !isLast ? AFTERGIFT[3] : afterGiftScene(dayIdx, isLast);
     if (scene && scene.length) playStory(scene, function () { render(); });
     else render();
   }

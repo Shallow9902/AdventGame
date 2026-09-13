@@ -75,7 +75,9 @@ GameBase.prototype.clearAsync = function () {
 GameBase.prototype.gate = function (label, text, start) {
   var overlay = gameEl("div", "game-gate");
   overlay.appendChild(gameEl("div", "gate-mark", this.opts.mark || "01"));
-  overlay.appendChild(gameEl("p", "gate-copy", text));
+  if (text) {
+    overlay.appendChild(gameEl("p", "gate-copy", text));
+  }
   var btn = gameEl("button", "btn big", label || "Начать");
   overlay.appendChild(btn);
   this.arena.appendChild(overlay);
@@ -153,7 +155,7 @@ function MemoryPairsGame(container, opts, onWin) {
   }
   this.arena.appendChild(this.grid);
   this.updateMemoryStats();
-  this.gate("Открыть воспоминания", "На поле спрятаны 12 пар ваших фотографий. Ошибаться можно сколько угодно; центральная фотография остаётся открытой.", function () {});
+  this.gate("Открыть воспоминания", "", function () {});
 }
 
 MemoryPairsGame.prototype = Object.create(GameBase.prototype);
