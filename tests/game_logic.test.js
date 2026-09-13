@@ -61,6 +61,8 @@ function loadContext() {
     clearTimeout,
     setInterval,
     clearInterval,
+    requestAnimationFrame: (fn) => setTimeout(fn, 16),
+    cancelAnimationFrame: (id) => clearTimeout(id),
     Math,
     Date,
     parseInt,
@@ -608,6 +610,57 @@ test('renderReplayCards: Generates correct cards for completed days', () => {
   const res0 = testHarness({ givenDay: [], won: [] }, null, null);
   assert.equal(res0.count, 0, 'Should render 0 cards before any day is finished');
 });
+
+test('Sleeping Grutik detection: grutik.js and app.js integration', () => {
+  const grutikCode = fs.readFileSync(path.join(__dirname, '..', 'grutik.js'), 'utf8');
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+  // Verify app.js exposes __isGrutikSleeping and __appState
+  assert.ok(appCode.includes('window.__isGrutikSleeping = isSleeping'), 'app.js should bind __isGrutikSleeping');
+  assert.ok(appCode.includes('window.__appState = state'), 'app.js should bind __appState');
+  assert.ok(grutikCode.includes('window.__isGrutikSleeping'), 'grutik.js should check window.__isGrutikSleeping');
+
+  // Run in VM with mock DOM
+  const ctx = loadContext();
+  let drawnCanvases = [];
+  ctx.drawGrutik = (canvas, stage, pose) => {
+    drawnCanvases.push({ canvas, stage, pose });
+  };
+
+  // Test isGrutikSleeping logic
+  ctx.window.__isGrutikSleeping = () => true;
+  assert.equal(ctx.isGrutikSleeping(), true, 'isGrutikSleeping should return true when __isGrutikSleeping is true');
+
+  ctx.window.__isGrutikSleeping = () => false;
+  assert.equal(ctx.isGrutikSleeping(), false, 'isGrutikSleeping should return false when __isGrutikSleeping is false');
+
+  // Test wait screen active fallback
+  const mockScreenWait = {
+    classList: {
+      has(c) { return c === 'active'; },
+      contains(c) { return c === 'active'; }
+    }
+  };
+  ctx.document.getElementById = (id) => id === 'screenWait' ? mockScreenWait : null;
+  delete ctx.window.__isGrutikSleeping;
+  assert.equal(ctx.isGrutikSleeping(), true, 'isGrutikSleeping should detect active screenWait');
+
+  // Test runGrutikSleep draws to both companion and waitCanvas with sleeping: true
+  const mockCompanionCanvas = { width: 280, height: 240 };
+  const mockWaitCanvas = { width: 380, height: 330 };
+  ctx.startGrutikIdle(mockCompanionCanvas, () => 1);
+  ctx.window.__waitCanvas = mockWaitCanvas;
+  ctx.window.__forceSleeping = true;
+  drawnCanvases = [];
+
+  ctx.runGrutikSleep(1000);
+  assert.ok(drawnCanvases.length >= 2, 'runGrutikSleep should draw to both companion and waitCanvas');
+  assert.equal(drawnCanvases[0].canvas, mockCompanionCanvas, 'First canvas should be companion');
+  assert.equal(drawnCanvases[0].pose.sleeping, true, 'Companion should be drawn with sleeping: true');
+  assert.equal(drawnCanvases[1].canvas, mockWaitCanvas, 'Second canvas should be waitCanvas');
+  assert.equal(drawnCanvases[1].pose.sleeping, true, 'waitCanvas should be drawn with sleeping: true');
+});
+
 
 
 

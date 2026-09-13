@@ -9,6 +9,9 @@
   var currentGame = null;
 
   var state = loadState();
+  if (typeof window !== "undefined") {
+    window.__appState = state;
+  }
   forceReset();
   forceDayIndex();
 
@@ -42,6 +45,9 @@
     try {
       localStorage.setItem(KEY, JSON.stringify(state));
     } catch (e) { }
+    if (typeof window !== "undefined") {
+      window.__appState = state;
+    }
   }
 
   function forceReset() {
@@ -49,6 +55,9 @@
     if (q.has("reset")) {
       localStorage.removeItem(KEY);
       state = defaultState();
+      if (typeof window !== "undefined") {
+        window.__appState = state;
+      }
     }
   }
 
@@ -61,6 +70,9 @@
     if (q.has("stage")) {
       var st = parseInt(q.get("stage"), 10);
       window.__stageForce = isNaN(st) ? null : st;
+    }
+    if (q.has("sleep")) {
+      window.__forceSleeping = true;
     }
   }
 
@@ -511,14 +523,29 @@
     return GRUTIK_LINES[Math.min(d, GRUTIK_LINES.length - 1)];
   }
 
-  function grutikLine() {
-    if (window.__previewDay != null) {
-      return lineForDay(window.__previewDay + 1);
+  function isSleeping() {
+    if (typeof window !== "undefined" && window.__forceSleeping != null) return !!window.__forceSleeping;
+    var waitScreen = $("screenWait");
+    if (waitScreen && waitScreen.classList.contains("active")) return true;
+    if (state && state.givenDay) {
+      if (state.givenDay.length >= DAYS) return true;
+      var cur = currentDayIdx();
+      if (state.givenDay.indexOf(cur) !== -1) return true;
     }
-    if (!state.grootPlanted) return GRUTIK_LINES[0];
+    return false;
+  }
+  if (typeof window !== "undefined") {
+    window.__isGrutikSleeping = isSleeping;
+    window.isGrutikSleeping = isSleeping;
+  }
+
+  function grutikLine() {
+    var cur = currentDayIdx();
+    var isDone = state.givenDay && state.givenDay.indexOf(cur) !== -1;
+    var isAllDone = state.givenDay && state.givenDay.length >= DAYS;
 
     // All days completed
-    if (state.givenDay.length >= DAYS) {
+    if (isAllDone) {
       return state.finalForm
         ? "Я есть Грутик.\n(Мы всё ещё здесь. Спасибо тебе за всё!)"
         : "Я есть Грутик!\n(Мы прошли все испытания! Ты самая лучшая.)";
@@ -530,14 +557,19 @@
     }
 
     // Today's day is already completed and gift is claimed (waiting for tomorrow)
-    if (state.givenDay.indexOf(currentDayIdx()) !== -1) {
+    if (isDone) {
       if (state.venomInfected) {
         return "Я есть Грутик.\n(На сегодня всё. Отдыхаем до завтра.)";
       }
       return "Я есть Грутик...\n(Сегодня мы отлично справились. Буду ждать тебя завтра!)";
     }
 
-    return lineForDay(currentDayIdx() + 1);
+    if (window.__previewDay != null) {
+      return lineForDay(window.__previewDay + 1);
+    }
+    if (!state.grootPlanted) return GRUTIK_LINES[0];
+
+    return lineForDay(cur + 1);
   }
 
   function setCompanionVisible(visible) {
@@ -548,21 +580,26 @@
   function updateGrutikBar() {
     var companionVisible = window.__previewDay != null || state.introSeen && state.grootPlanted;
     setCompanionVisible(companionVisible);
-    var sleeping = typeof isGrutikSleeping === "function" && isGrutikSleeping();
+    var sleeping = isSleeping();
     try {
-      drawGrutik($("grutikCanvas"), grutikStage(), sleeping ? { sleeping: true } : null);
+      var nowTime = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+      drawGrutik($("grutikCanvas"), grutikStage(), sleeping ? { time: nowTime, sleeping: true, tilt: 0.16, arm: -12, y: 0 } : null);
     } catch (e) { }
-    if (sleeping && typeof grutikSleeping !== "undefined" && !grutikSleeping && typeof runGrutikSleep === "function") {
-      grutikSleeping = true;
-      grutikSleepRaf = requestAnimationFrame(runGrutikSleep);
+    if (sleeping && typeof runGrutikSleep === "function") {
+      if (!grutikSleeping) {
+        grutikSleeping = true;
+        grutikSleepRaf = requestAnimationFrame(runGrutikSleep);
+      }
     }
     var line = grutikLine();
     var sayEl = $("grutikSay");
-    if (line.includes("\n")) {
-      var parts = line.split("\n");
-      sayEl.innerHTML = '<span class="groot-voice">' + escapeHtml(parts[0]) + '</span><span class="groot-trans">' + escapeHtml(parts.slice(1).join(" ")) + '</span>';
-    } else {
-      sayEl.textContent = line;
+    if (sayEl) {
+      if (line.includes("\n")) {
+        var parts = line.split("\n");
+        sayEl.innerHTML = '<span class="groot-voice">' + escapeHtml(parts[0]) + '</span><span class="groot-trans">' + escapeHtml(parts.slice(1).join(" ")) + '</span>';
+      } else {
+        sayEl.textContent = line;
+      }
     }
   }
 
@@ -1149,6 +1186,8 @@
       var el = $(id);
       if (el) el.classList.remove("active");
     });
+    // Do not keep redrawing a canvas from a screen that is no longer visible.
+    if (typeof window !== "undefined") window.__waitCanvas = null;
   }
 
   function isDayCompleted(i) {
@@ -1319,14 +1358,22 @@
     var mm = Math.floor((ms % 3600000) / 60000);
     $("waitCount").textContent = "Следующее открытие через " + hh + " ч " + mm + " мин";
 
+    updateGrutikBar();
+
     var waitCanvas = $("waitGrutikCanvas");
     if (waitCanvas) {
       window.__waitCanvas = waitCanvas;
-      if (typeof runGrutikSleep === "function" && isGrutikSleeping()) {
-        if (!grutikSleeping) {
-          grutikSleeping = true;
-          grutikSleepRaf = requestAnimationFrame(runGrutikSleep);
-        }
+      var stage = grutikStage();
+      try {
+        var nowTime = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        drawGrutik(waitCanvas, stage, { time: nowTime, sleeping: true, tilt: 0.16, arm: -12, y: 0 });
+      } catch (e) {}
+
+      if (typeof runGrutikSleep === "function") {
+        // A prior screen may have left a stale animation state; restart for this canvas.
+        cancelAnimationFrame(grutikSleepRaf);
+        grutikSleeping = true;
+        grutikSleepRaf = requestAnimationFrame(runGrutikSleep);
       }
       waitCanvas.onclick = function () {
         var sayEl = $("grutikSay");
@@ -1624,6 +1671,17 @@
       storyTap();
     });
 
+    var compCanvas = $("grutikCanvas");
+    if (compCanvas) {
+      compCanvas.onclick = function () {
+        var sayEl = $("grutikSay");
+        if (!sayEl) return;
+        if (isSleeping()) {
+          sayEl.innerHTML = '<span class="groot-voice">Я есть Грутик...</span><span class="groot-trans">(Тсс... Малыш сладко спит до завтра 💤)</span>';
+        }
+      };
+    }
+
     startGrutikIdle($("grutikCanvas"), grutikStage);
 
     render();
@@ -1636,6 +1694,7 @@
       grant: grant,
       confetti: confetti,
       stage: grutikStage,
+      isSleeping: isSleeping,
       game: function () { return currentGame; },
       storyTap: storyTap
     };

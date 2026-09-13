@@ -343,7 +343,7 @@ function drawHead(ctx, x, y, scale, traits, pose) {
   var h = 69 * scale;
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(pose.tilt || 0);
+  ctx.rotate((pose && pose.tilt) || 0);
   ctx.fillStyle = woodGradient(ctx, 0, -h / 2, h / 2);
   ctx.beginPath();
   ctx.moveTo(-w * .44, h * .35);
@@ -602,11 +602,19 @@ var grutikSleeping = false;
 var grutikSleepRaf = 0;
 
 function isGrutikSleeping() {
-  if (typeof window !== "undefined" && window.__forceSleeping != null) return window.__forceSleeping;
-  if (typeof state !== "undefined" && state && state.givenDay && typeof currentDayIdx === "function") {
-    var cur = currentDayIdx();
-    if (state.givenDay.indexOf(cur) !== -1) return true;
-    if (state.givenDay.length >= (typeof DAYS !== "undefined" ? DAYS : 6)) return true;
+  if (typeof window !== "undefined" && window.__forceSleeping != null) return !!window.__forceSleeping;
+  if (typeof window !== "undefined" && typeof window.__isGrutikSleeping === "function") {
+    return window.__isGrutikSleeping();
+  }
+  if (typeof document !== "undefined") {
+    var waitEl = document.getElementById("screenWait");
+    if (waitEl && waitEl.classList.contains("active")) return true;
+  }
+  var st = (typeof window !== "undefined" && window.__appState) ? window.__appState : (typeof state !== "undefined" ? state : null);
+  var curFn = (typeof currentDayIdx === "function") ? currentDayIdx : (typeof window !== "undefined" && typeof window.currentDayIdx === "function" ? window.currentDayIdx : null);
+  if (st && st.givenDay) {
+    if (st.givenDay.length >= (typeof DAYS !== "undefined" ? DAYS : 6)) return true;
+    if (curFn && st.givenDay.indexOf(curFn()) !== -1) return true;
   }
   return false;
 }
@@ -619,12 +627,13 @@ function runGrutikSleep(time) {
     scheduleGrutikIdle();
     return;
   }
-  var stage = grutikIdleStage ? grutikIdleStage() : 1;
-  var breathe = Math.sin(time * 0.0018) * 2;
+  var stage = grutikIdleStage ? grutikIdleStage() : (typeof window !== "undefined" && typeof window.__grutikStage === "function" ? window.__grutikStage() : 1);
+  var t = (typeof time === "number" && !isNaN(time)) ? time : (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
+  var breathe = Math.sin(t * 0.0018) * 2;
   var pose = {
-    time: time,
+    time: t,
     sleeping: true,
-    tilt: 0.16 + Math.sin(time * 0.0014) * 0.025,
+    tilt: 0.16 + Math.sin(t * 0.0014) * 0.025,
     arm: -12,
     y: breathe
   };
