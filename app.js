@@ -78,16 +78,38 @@
     return d.getTime();
   }
 
+  function parseStartDate() {
+    if (SITE_CONFIG.startDate) {
+      var parts = SITE_CONFIG.startDate.split("-");
+      if (parts.length === 3) {
+        var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      }
+    }
+    return todayMidnight();
+  }
+
+  function getBaseStartDate() {
+    if (SITE_CONFIG.startDate) return parseStartDate();
+    if (!state.start) {
+      state.start = todayMidnight();
+      save();
+    }
+    return state.start;
+  }
+
   function currentDayIdx() {
     if (window.__previewDay != null) return window.__previewDay;
     if (!state.started) {
       state.started = true;
-      if (!state.start) state.start = todayMidnight();
+      if (!state.start) state.start = getBaseStartDate();
       save();
     }
-    if (!state.start) return 0;
-    var diff = Math.floor((todayMidnight() - state.start) / DAY_MS);
-    return Math.max(0, Math.min(DAYS - 1, diff));
+    var base = getBaseStartDate();
+    var diff = Math.floor((todayMidnight() - base) / DAY_MS);
+    if (diff < 0) return 0;
+    return Math.min(DAYS - 1, diff);
   }
 
   function normalizeGift(g, i) {

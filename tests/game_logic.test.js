@@ -286,3 +286,35 @@ test('Story Choice System: C() step constructor, choices in INTRO, GREET, POSTWI
   assert.ok(appCode.includes('C("final_words"'), 'FINAL_SCENE should have final words choice');
 });
 
+test('Calendar progression: 2026-09-14 is day 1 (index 0), 2026-09-19 is day 6 (index 5)', () => {
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  assert.ok(appCode.includes('parseStartDate'), 'parseStartDate function should exist');
+
+  const DAYS = 6;
+  const DAY_MS = 86400000;
+  const parseStartDate = (startDate) => {
+    const parts = startDate.split('-');
+    const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
+
+  const getDayIdxForDate = (dateStr, startDateStr = '2026-09-14') => {
+    const base = parseStartDate(startDateStr);
+    const curParts = dateStr.split('-');
+    const curDate = new Date(parseInt(curParts[0], 10), parseInt(curParts[1], 10) - 1, parseInt(curParts[2], 10));
+    curDate.setHours(0, 0, 0, 0);
+    const diff = Math.floor((curDate.getTime() - base) / DAY_MS);
+    if (diff < 0) return 0;
+    return Math.min(DAYS - 1, diff);
+  };
+
+  assert.equal(getDayIdxForDate('2026-09-14'), 0, '14 сентября -> День 1 (index 0)');
+  assert.equal(getDayIdxForDate('2026-09-15'), 1, '15 сентября -> День 2 (index 1)');
+  assert.equal(getDayIdxForDate('2026-09-16'), 2, '16 сентября -> День 3 (index 2)');
+  assert.equal(getDayIdxForDate('2026-09-17'), 3, '17 сентября -> День 4 (index 3)');
+  assert.equal(getDayIdxForDate('2026-09-18'), 4, '18 сентября -> День 5 (index 4)');
+  assert.equal(getDayIdxForDate('2026-09-19'), 5, '19 сентября -> День 6 (index 5)');
+  assert.equal(getDayIdxForDate('2026-09-20'), 5, '20 сентября и далее -> День 6 (cap at index 5)');
+});
+

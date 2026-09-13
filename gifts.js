@@ -1,5 +1,6 @@
 var SITE_CONFIG = {
   days: 6,
+  startDate: "2026-09-14",
   title: "Подарки для тебя",
   couplePhoto: "photos/couple.webp",
   memoryCenterPhoto: "photos/center.jpg",
