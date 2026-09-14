@@ -177,7 +177,7 @@
 
   var dayGames = [
     { type: "memory", mark: "01", icon: "🌸", badge: "Память", desc: "12 пар наших фотографий", kicker: "ДЕНЬ 01 · ПАМЯТЬ", title: "Наши моменты", instruction: "Найди двенадцать пар фотографий.", photos: SITE_CONFIG.memoryPhotos, centerPhoto: SITE_CONFIG.memoryCenterPhoto },
-    { type: "blockblast", mark: "02", icon: "🌿", badge: "Тактика", desc: "Бесконечный режим на рекорд", kicker: "ДЕНЬ 02 · ТАКТИКА", title: "Block Blast: корни", instruction: "Перетаскивай фигуры и собирай полные линии.", lines: 4 },
+    { type: "blockblast", mark: "02", icon: "🌿", badge: "Тактика", desc: "Бесконечный режим на рекорд", kicker: "ДЕНЬ 02 · ТАКТИКА", title: "Block Blast: корни", instruction: "Перетаскивай фигуры и открывай нашу фотографию.", lines: 7, photo: "photos/blockblast.jpg" },
     { type: "echo", mark: "03", icon: "⚡", badge: "Память", desc: "Код сигналов Грутика", kicker: "ДЕНЬ 03 · ПАМЯТЬ", title: "Эхо сигнала", instruction: "Запомни код, который нашёл Грутик.", lengths: [3, 4, 5, 6] },
     { type: "photoPuzzle", mark: "04", icon: "🧩", badge: "Пазл", desc: "Фотопазл из 16 кусочков", kicker: "ДЕНЬ 04 · ПАМЯТЬ", title: "Собери нашу фотографию", instruction: "Соедини шестнадцать фигурных деталей.", photo: SITE_CONFIG.couplePhoto, size: 4 },
     { type: "circuit", mark: "05", icon: "💡", badge: "Логика", desc: "Восстановление цепи питания", kicker: "ДЕНЬ 05 · ЛОГИКА", title: "Живая схема", instruction: "Верни питание колесу." },

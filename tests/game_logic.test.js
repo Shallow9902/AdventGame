@@ -23,6 +23,7 @@ function loadContext() {
           children: [],
           setAttribute(k, v) { this[k] = v; },
           appendChild(child) { this.children.push(child); return child; },
+          remove() { this.removed = true; },
           listeners: {},
           addEventListener(ev, fn) {
             (this.listeners[ev] = this.listeners[ev] || []).push(fn);
@@ -222,6 +223,54 @@ test('BlockBlastGame: Line clearing, scoring, and restart', () => {
   assert.ok(game.board.some(c => c > 0), 'Board should be re-seeded on restart');
 });
 
+test('BlockBlastGame: Cleared lines reveal the shared photo', () => {
+  const ctx = loadContext();
+  const mockContainer = { innerHTML: '', appendChild() {} };
+  const game = ctx.Games.create('blockblast', mockContainer, {
+    lines: 4,
+    photo: 'photos/blockblast.jpg'
+  }, () => {});
+
+  game.board = game.board.map(() => 0);
+  for (let i = 0; i < 8; i++) {
+    game.board[i] = 2;
+    game.board[i * 8] = 3;
+  }
+
+  game.clearLines();
+  assert.equal(game.revealed.filter(Boolean).length, 15, 'A row and column should reveal 15 unique photo fragments');
+  assert.ok(game.revealed[0] && game.revealed[7] && game.revealed[56], 'Cleared row and column cells should stay revealed');
+
+  game.renderBoard();
+  assert.ok(game.blockCells[7].className.includes('photo-revealed'), 'An empty revealed cell should display its photo fragment');
+  assert.ok(game.blockBoard.style['--block-photo'].includes('photos/blockblast.jpg'), 'The configured photo should be rendered as one board underlay');
+  assert.ok(game.blockCells[7].style.backgroundImage.includes('photos/blockblast.jpg'), 'Only revealed cells should display photo fragments before completion');
+
+  game.board[7] = 4;
+  game.renderBoard();
+  assert.ok(!game.blockCells[7].className.includes('photo-revealed'), 'A placed block should temporarily cover a revealed fragment');
+  game.board[7] = 0;
+  game.renderBoard();
+  assert.ok(game.blockCells[7].className.includes('photo-revealed'), 'The photo fragment should return when the cell is empty again');
+
+  for (let c = 0; c < 8; c++) game.board[c] = 5;
+  game.clearLines();
+  for (let c = 0; c < 8; c++) assert.equal(game.board[c], 0, 'Revealed photo state must not prevent a full row from clearing');
+
+  game.restart();
+  assert.equal(game.revealed.filter(Boolean).length, 0, 'Restart should hide all photo fragments');
+  assert.ok(game.stats.innerHTML.includes('Фото: <strong>0 / 64</strong>'), 'Stats should show photo reveal progress');
+
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  assert.ok(appCode.includes('photo: "photos/blockblast.jpg"'), 'Day 2 should configure blockblast.jpg');
+  assert.ok(appCode.includes('lines: 7, photo: "photos/blockblast.jpg"'), 'Day 2 should reveal the full photo after 7 lines');
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'photos', 'blockblast.jpg')), 'The Block Blast photo should exist');
+
+  const cssCode = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+  assert.ok(cssCode.includes('.block-shell .game-head'), 'Block Blast header should have its own wrapping layout');
+  assert.ok(cssCode.includes('flex: 1 0 100%'), 'Long Block Blast stats should occupy a separate row');
+});
+
 test('BlockBlastGame: Endless mode transition and high-score saving', () => {
   const ctx = loadContext();
   const mockContainer = { innerHTML: '', appendChild() {} };
@@ -236,6 +285,71 @@ test('BlockBlastGame: Endless mode transition and high-score saving', () => {
     game.saveBestScore();
   }
   assert.equal(ctx.localStorage.getItem('advent_blockblast_best'), '500', 'Best score should be saved in localStorage');
+});
+
+test('BlockBlastGame: Initial goal reveals the whole photo before endless choice', () => {
+  const ctx = loadContext();
+  const mockContainer = { innerHTML: '', appendChild() {} };
+  const game = ctx.Games.create('blockblast', mockContainer, { lines: 1 }, () => {});
+
+  game.board = game.board.map(() => 0);
+  for (let c = 0; c < 7; c++) game.board[c] = 2;
+  game.board[20] = 6;
+  game.pieces = [
+    { shape: [[0, 0]], used: false, color: 3 },
+    { shape: [[0, 0]], used: false, color: 4 },
+    { shape: [[0, 0]], used: false, color: 5 }
+  ];
+  game.selected = 0;
+  game.later = fn => fn();
+  game.place(7);
+
+  assert.equal(game.revealed.filter(Boolean).length, 64, 'Reaching the first goal should reveal all photo cells');
+  assert.equal(game.board[20], 6, 'Full-photo preview should preserve blocks outside the cleared line');
+  assert.equal(game.photoComplete, true, 'The full-photo underlay should activate only after reaching the goal');
+  assert.equal(game.wonCelebrated, true, 'Endless-mode choice should appear after the reveal');
+  assert.ok(game.status.textContent.includes('Фотография открыта'), 'Status should announce the completed photo');
+});
+
+test('BlockBlastGame: No moves offers tray reroll or full restart', () => {
+  const ctx = loadContext();
+  const mockContainer = { innerHTML: '', appendChild() {} };
+  const game = ctx.Games.create('blockblast', mockContainer, { lines: 4 }, () => {});
+
+  game.board = game.board.map(() => 2);
+  game.board[63] = 0;
+  game.revealed[0] = true;
+  game.score = 125;
+  game.lines = 2;
+  game.pieces = [
+    { shape: [[0, 0], [1, 0]], used: false, color: 1 },
+    { shape: [[0, 0], [0, 1]], used: false, color: 2 },
+    { shape: [[0, 0], [1, 0], [0, 1], [1, 1]], used: false, color: 3 }
+  ];
+  assert.equal(game.hasAnyMove(), false, 'Prepared board should have no move for current pieces');
+
+  game.showNoMoves();
+  assert.ok(game.noMovesOverlay, 'No-moves overlay should be shown');
+  const card = game.noMovesOverlay.children[0];
+  const actions = card.children.find(child => child.className.includes('block-win-actions'));
+  const rerollBtn = actions.children.find(child => child.className.includes('block-reroll-btn'));
+  const restartBtn = actions.children.find(child => child.className.includes('block-full-restart-btn'));
+  assert.ok(rerollBtn && restartBtn, 'Overlay should offer both reset choices');
+
+  rerollBtn.click();
+  assert.equal(game.score, 125, 'Tray reroll should preserve score');
+  assert.equal(game.lines, 2, 'Tray reroll should preserve cleared lines');
+  assert.equal(game.revealed[0], true, 'Tray reroll should preserve revealed photo cells');
+  assert.equal(game.board[0], 2, 'Tray reroll should preserve the board');
+  assert.equal(game.hasAnyMove(), true, 'Replacement tray should contain an available move');
+
+  game.showNoMoves();
+  const restartCard = game.noMovesOverlay.children[0];
+  const restartActions = restartCard.children.find(child => child.className.includes('block-win-actions'));
+  restartActions.children.find(child => child.className.includes('block-full-restart-btn')).click();
+  assert.equal(game.score, 0, 'Full restart should reset score');
+  assert.equal(game.lines, 0, 'Full restart should reset lines');
+  assert.equal(game.revealed.filter(Boolean).length, 0, 'Full restart should hide the photo again');
 });
 
 test('lineForDay: Companion speech lines for normal and preview modes', () => {
@@ -649,6 +763,7 @@ test('Sleeping Grutik detection: grutik.js and app.js integration', () => {
   const mockCompanionCanvas = { width: 280, height: 240 };
   const mockWaitCanvas = { width: 380, height: 330 };
   ctx.startGrutikIdle(mockCompanionCanvas, () => 1);
+  ctx.cancelAnimationFrame(ctx.grutikSleepRaf);
   ctx.window.__waitCanvas = mockWaitCanvas;
   ctx.window.__forceSleeping = true;
   drawnCanvases = [];
@@ -659,11 +774,6 @@ test('Sleeping Grutik detection: grutik.js and app.js integration', () => {
   assert.equal(drawnCanvases[0].pose.sleeping, true, 'Companion should be drawn with sleeping: true');
   assert.equal(drawnCanvases[1].canvas, mockWaitCanvas, 'Second canvas should be waitCanvas');
   assert.equal(drawnCanvases[1].pose.sleeping, true, 'waitCanvas should be drawn with sleeping: true');
+  ctx.window.__forceSleeping = false;
+  ctx.stopGrutikIdle();
 });
-
-
-
-
-
-
-

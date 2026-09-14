@@ -521,11 +521,20 @@ function BlockBlastGame(container, opts, onWin) {
   } catch (e) { }
   this.endless = !!opts.endless;
   this.wonCelebrated = false;
+  this.photoCompleting = false;
+  this.photoComplete = false;
   this.selected = -1;
+  this.photo = opts.photo || "photos/blockblast.jpg";
+  this.revealed = [];
+  this.justRevealed = {};
   this.board = [];
-  for (var i = 0; i < 64; i++) this.board.push(0);
+  for (var i = 0; i < 64; i++) {
+    this.board.push(0);
+    this.revealed.push(false);
+  }
   this.seedBoard();
 
+  this.root.classList.add("block-shell");
   this.arena.classList.add("block-arena");
 
   var head = (this.root && this.root.querySelector) ? this.root.querySelector(".game-head") : null;
@@ -551,6 +560,9 @@ function BlockBlastGame(container, opts, onWin) {
   if (head) head.appendChild(ctrl);
 
   this.blockBoard = gameEl("div", "block-board");
+  var photoBackground = 'url("' + this.photo.replace(/"/g, '\\"') + '")';
+  if (this.blockBoard.style.setProperty) this.blockBoard.style.setProperty("--block-photo", photoBackground);
+  else this.blockBoard.style["--block-photo"] = photoBackground;
   this.blockCells = [];
   for (var cell = 0; cell < 64; cell++) {
     var blockCell = gameEl("div", "block-cell");
@@ -566,7 +578,7 @@ function BlockBlastGame(container, opts, onWin) {
   if (this.endless) {
     this.gate("Начать игру", "Бесконечный режим: набирай очки, очищая строки и столбцы. Ставь новые рекорды!", function () {});
   } else {
-    this.gate("Начать уровень", "Перетаскивай фигуры снизу на свободные клетки. Полные строки и столбцы исчезают. Очисти 4 линии.", function () {});
+    this.gate("Начать уровень", "Перетаскивай фигуры снизу на свободные клетки. Полные строки и столбцы исчезают. Очисти " + this.lineGoal + " линий.", function () {});
   }
 }
 
@@ -579,10 +591,12 @@ BlockBlastGame.prototype.seedBoard = function () {
 };
 
 BlockBlastGame.prototype.updateStats = function () {
+  var revealedCount = this.revealed.filter(function (cell) { return cell; }).length;
+  var photoProgress = ' · Фото: <strong>' + revealedCount + ' / 64</strong>';
   if (this.endless) {
-    this.stats.innerHTML = '<span class="bb-tag">Бесконечный режим</span> Очки: <strong>' + this.score + '</strong> · Рекорд: <strong>' + this.bestScore + '</strong>';
+    this.stats.innerHTML = '<span class="bb-tag">Бесконечный режим</span> Очки: <strong>' + this.score + '</strong> · Рекорд: <strong>' + this.bestScore + '</strong>' + photoProgress;
   } else {
-    this.stats.innerHTML = 'Линии: <strong>' + this.lines + ' / ' + this.lineGoal + '</strong> · Очки: <strong>' + this.score + '</strong>';
+    this.stats.innerHTML = 'Линии: <strong>' + this.lines + ' / ' + this.lineGoal + '</strong> · Очки: <strong>' + this.score + '</strong>' + photoProgress;
   }
 };
 
@@ -593,6 +607,15 @@ BlockBlastGame.prototype.saveBestScore = function () {
 };
 
 BlockBlastGame.prototype.newPieces = function () {
+  this.generatePieces();
+  if (!this.hasAnyMove()) {
+    this.showNoMoves();
+    return;
+  }
+  this.status.textContent = this.endless ? "Бесконечный режим. Набирай очки!" : "Перетащи одну из фигур на поле.";
+};
+
+BlockBlastGame.prototype.generatePieces = function () {
   this.pieces = [];
   for (var i = 0; i < 3; i++) {
     var color = 1 + Math.floor(Math.random() * 6);
@@ -600,25 +623,40 @@ BlockBlastGame.prototype.newPieces = function () {
   }
   this.selected = -1;
   this.renderTray();
+};
+
+BlockBlastGame.prototype.rerollPieces = function () {
+  var attempts = 0;
+  do {
+    this.generatePieces();
+    attempts++;
+  } while (!this.hasAnyMove() && attempts < 40);
+
   if (!this.hasAnyMove()) {
-    if (this.endless) {
-      this.showGameOver();
-      return;
-    }
-    this.status.textContent = "Ходов не осталось. Поле перестроено, прогресс сохранён.";
-    this.board = this.board.map(function () { return 0; });
-    this.seedBoard();
-    this.renderBoard();
-  } else {
-    this.status.textContent = this.endless ? "Бесконечный режим. Набирай очки!" : "Перетащи одну из фигур на поле.";
+    this.pieces[0] = { shape: BLOCK_SHAPES[0], used: false, color: 1 + Math.floor(Math.random() * 6) };
+    this.renderTray();
   }
+  this.status.textContent = "Фигуры заменены. Поле и открытая фотография сохранены.";
 };
 
 BlockBlastGame.prototype.renderBoard = function () {
   this.blockCells.forEach(function (cell, i) {
     var val = this.board[i];
-    cell.className = "block-cell" + (val ? " filled block-color-" + val : "");
+    var photoVisible = !val && this.revealed[i];
+    cell.className = "block-cell" + (val ? " filled block-color-" + val : "") + (photoVisible ? " photo-revealed" : "") + (photoVisible && this.justRevealed[i] ? " photo-new" : "");
+    if (photoVisible && !this.photoComplete) {
+      var row = Math.floor(i / this.size);
+      var col = i % this.size;
+      cell.style.backgroundImage = 'url("' + this.photo.replace(/"/g, '\\"') + '")';
+      cell.style.backgroundSize = (this.size * 100) + "% " + (this.size * 100) + "%";
+      cell.style.backgroundPosition = (col * 100 / (this.size - 1)) + "% " + (row * 100 / (this.size - 1)) + "%";
+    } else {
+      cell.style.backgroundImage = "";
+      cell.style.backgroundSize = "";
+      cell.style.backgroundPosition = "";
+    }
   }, this);
+  this.justRevealed = {};
 };
 
 BlockBlastGame.prototype.renderTray = function () {
@@ -647,7 +685,7 @@ BlockBlastGame.prototype.renderTray = function () {
 
 BlockBlastGame.prototype.startBlockDrag = function (event, index) {
   var piece = this.pieces[index];
-  if (this.done || this.blockDrag || piece.used || (event.button != null && event.button !== 0)) return;
+  if (this.done || this.photoCompleting || this.blockDrag || piece.used || (event.button != null && event.button !== 0)) return;
   event.preventDefault();
   var button = piece.element;
   var ghost = button.cloneNode(true);
@@ -773,7 +811,7 @@ BlockBlastGame.prototype.previewFits = function () {
 };
 
 BlockBlastGame.prototype.place = function (idx) {
-  if (this.done || this.selected < 0) {
+  if (this.done || this.photoCompleting || this.selected < 0) {
     if (!this.done) this.status.textContent = "Сначала выбери фигуру снизу.";
     return;
   }
@@ -803,7 +841,12 @@ BlockBlastGame.prototype.place = function (idx) {
   this.updateStats();
 
   if (!this.endless && this.lines >= this.lineGoal) {
-    this.showVictoryChoice();
+    var self = this;
+    this.later(function () {
+      self.photoCompleting = false;
+      self.blockBoard.classList.remove("photo-preview");
+      self.showVictoryChoice();
+    }, 950);
     return;
   }
 
@@ -811,8 +854,7 @@ BlockBlastGame.prototype.place = function (idx) {
   else {
     this.renderTray();
     if (!this.hasAnyMove()) {
-      if (this.endless) this.showGameOver();
-      else this.newPieces();
+      this.showNoMoves();
     }
   }
 };
@@ -842,14 +884,35 @@ BlockBlastGame.prototype.clearLines = function () {
   }
   var indexes = Object.keys(clear);
   if (indexes.length) {
-    for (var key in clear) this.board[Number(key)] = 0;
+    this.justRevealed = {};
+    for (var key in clear) {
+      var clearedIndex = Number(key);
+      this.board[clearedIndex] = 0;
+      if (!this.revealed[clearedIndex]) {
+        this.revealed[clearedIndex] = true;
+        this.justRevealed[clearedIndex] = true;
+      }
+    }
     this.lines += rowsAndCols;
     this.score += rowsAndCols * 40;
+    if (!this.endless && this.lines >= this.lineGoal && !this.wonCelebrated) {
+      this.photoCompleting = true;
+      this.photoComplete = true;
+      for (var photoIndex = 0; photoIndex < this.revealed.length; photoIndex++) {
+        if (!this.revealed[photoIndex]) this.justRevealed[photoIndex] = true;
+        this.revealed[photoIndex] = true;
+      }
+      this.blockBoard.classList.add("photo-complete");
+      this.blockBoard.classList.add("photo-preview");
+      this.status.textContent = "Фотография открыта! ✨";
+    }
     if (this.endless && this.score > this.bestScore) {
       this.bestScore = this.score;
       this.saveBestScore();
     }
-    if (this.endless) {
+    if (this.photoCompleting) {
+      this.status.textContent = "Фотография открыта! ✨";
+    } else if (this.endless) {
       this.status.textContent = "Линия очищена! +" + (rowsAndCols * 40) + " очков.";
     } else {
       this.status.textContent = "Линия очищена. Освободи ещё " + Math.max(0, this.lineGoal - this.lines) + ".";
@@ -858,10 +921,25 @@ BlockBlastGame.prototype.clearLines = function () {
 };
 
 BlockBlastGame.prototype.restart = function () {
+  this.clearAsync();
+  if (this.noMovesOverlay) {
+    this.noMovesOverlay.remove();
+    this.noMovesOverlay = null;
+  }
   if (this.blockDrag && this.blockDrag.ghost) this.blockDrag.ghost.remove();
   this.blockDrag = null;
+  this.photoCompleting = false;
+  this.photoComplete = false;
+  this.wonCelebrated = false;
+  this.blockBoard.classList.remove("photo-complete");
+  this.blockBoard.classList.remove("photo-preview");
   this.board = [];
-  for (var i = 0; i < 64; i++) this.board.push(0);
+  this.revealed = [];
+  this.justRevealed = {};
+  for (var i = 0; i < 64; i++) {
+    this.board.push(0);
+    this.revealed.push(false);
+  }
   this.seedBoard();
   this.score = 0;
   if (!this.endless) {
@@ -881,7 +959,7 @@ BlockBlastGame.prototype.showVictoryChoice = function () {
   var card = gameEl("div", "block-win-card");
   card.appendChild(gameEl("div", "block-win-icon", "🎉"));
   card.appendChild(gameEl("h3", "block-win-title", "Цель дня достигнута!"));
-  card.appendChild(gameEl("p", "block-win-desc", "Ты очистила 4 линии и разблокировала колесо фортуны! Можно перейти к подарку прямо сейчас или продолжить играть на рекорд очков."));
+  card.appendChild(gameEl("p", "block-win-desc", "Ты очистила " + this.lineGoal + " линии и полностью открыла нашу фотографию! Можно перейти к подарку прямо сейчас или продолжить играть на рекорд очков."));
 
   var actions = gameEl("div", "block-win-actions");
   var exitLabel = (this.opts.isReplay || this.opts.onExit) ? "Вернуться 💤" : "К колесу 🎡";
@@ -922,37 +1000,39 @@ BlockBlastGame.prototype.startEndlessMode = function () {
 };
 
 BlockBlastGame.prototype.showGameOver = function () {
+  this.showNoMoves();
+};
+
+BlockBlastGame.prototype.showNoMoves = function () {
+  if (this.noMovesOverlay) return;
   var self = this;
   var overlay = gameEl("div", "block-win-overlay");
   var card = gameEl("div", "block-win-card");
-  card.appendChild(gameEl("div", "block-win-icon", "💫"));
-  card.appendChild(gameEl("h3", "block-win-title", "Ходов больше нет!"));
-  card.appendChild(gameEl("p", "block-win-desc", "Твой счёт: " + this.score + " · Лучший рекорд: " + this.bestScore));
+  card.appendChild(gameEl("div", "block-win-icon", "🧩"));
+  card.appendChild(gameEl("h3", "block-win-title", "Фигуры больше не помещаются"));
+  card.appendChild(gameEl("p", "block-win-desc", "Можно заменить только текущие фигуры и сохранить поле, очки и фотографию — или полностью начать игру заново."));
 
   var actions = gameEl("div", "block-win-actions");
-  var restartBtn = gameEl("button", "btn big", "Сыграть заново ↺");
-  var exitLabel = (this.opts.isReplay || this.opts.onExit) ? "Вернуться 💤" : "К колесу 🎡";
-  var wheelBtn = gameEl("button", "btn btn-primary big", exitLabel);
+  var rerollBtn = gameEl("button", "btn btn-primary big block-reroll-btn", "Заменить текущие фигуры");
+  var restartBtn = gameEl("button", "btn big block-full-restart-btn", "Начать игру заново ↺");
 
+  rerollBtn.addEventListener("click", function () {
+    overlay.remove();
+    self.noMovesOverlay = null;
+    self.rerollPieces();
+  });
   restartBtn.addEventListener("click", function () {
     overlay.remove();
+    self.noMovesOverlay = null;
     self.restart();
   });
 
-  wheelBtn.addEventListener("click", function () {
-    overlay.remove();
-    if (self.opts.onExit && (self.endless || self.opts.isReplay)) {
-      self.opts.onExit();
-    } else {
-      self.complete("Поле корней очищено");
-    }
-  });
-
+  actions.appendChild(rerollBtn);
   actions.appendChild(restartBtn);
-  actions.appendChild(wheelBtn);
   card.appendChild(actions);
   overlay.appendChild(card);
   this.arena.appendChild(overlay);
+  this.noMovesOverlay = overlay;
 };
 
 function puzzleFallback() {
