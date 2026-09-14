@@ -498,15 +498,30 @@ TraceGame.prototype.destroy = function () {
 var BLOCK_SHAPES = [
   [[0, 0]],
   [[0, 0], [1, 0]],
-  [[0, 0], [0, 1]],
   [[0, 0], [1, 0], [2, 0]],
-  [[0, 0], [0, 1], [0, 2]],
   [[0, 0], [1, 0], [0, 1], [1, 1]],
   [[0, 0], [0, 1], [1, 1]],
-  [[1, 0], [0, 1], [1, 1]],
   [[0, 0], [1, 0], [2, 0], [1, 1]],
   [[0, 0], [1, 0], [1, 1], [2, 1]]
 ];
+
+function transformBlockShape(shape, turns, reflected) {
+  var points = shape.map(function (point) {
+    return [reflected ? -point[0] : point[0], point[1]];
+  });
+  for (var turn = 0; turn < turns; turn++) {
+    points = points.map(function (point) { return [-point[1], point[0]]; });
+  }
+  var minX = Math.min.apply(null, points.map(function (point) { return point[0]; }));
+  var minY = Math.min.apply(null, points.map(function (point) { return point[1]; }));
+  return points.map(function (point) { return [point[0] - minX, point[1] - minY]; })
+    .sort(function (a, b) { return a[1] - b[1] || a[0] - b[0]; });
+}
+
+function randomBlockShape() {
+  var shape = BLOCK_SHAPES[Math.floor(Math.random() * BLOCK_SHAPES.length)];
+  return transformBlockShape(shape, Math.floor(Math.random() * 4), Math.random() < .5);
+}
 
 function BlockBlastGame(container, opts, onWin) {
   GameBase.call(this, container, opts, onWin);
@@ -586,8 +601,22 @@ BlockBlastGame.prototype = Object.create(GameBase.prototype);
 BlockBlastGame.prototype.constructor = BlockBlastGame;
 
 BlockBlastGame.prototype.seedBoard = function () {
-  var seeds = [0, 1, 3, 4, 6, 7, 16, 18, 20, 22, 24, 27, 29, 31, 40, 42, 45, 47];
-  for (var i = 0; i < seeds.length; i++) this.board[seeds[i]] = 1 + (i % 6);
+  var target = 14 + Math.floor(Math.random() * 7);
+  var rowCounts = new Array(this.size).fill(0);
+  var colCounts = new Array(this.size).fill(0);
+  var placed = 0;
+  var attempts = 0;
+  while (placed < target && attempts < 256) {
+    attempts++;
+    var index = Math.floor(Math.random() * this.board.length);
+    var row = Math.floor(index / this.size);
+    var col = index % this.size;
+    if (this.board[index] || rowCounts[row] >= 4 || colCounts[col] >= 4) continue;
+    this.board[index] = 1 + Math.floor(Math.random() * 6);
+    rowCounts[row]++;
+    colCounts[col]++;
+    placed++;
+  }
 };
 
 BlockBlastGame.prototype.updateStats = function () {
@@ -619,7 +648,7 @@ BlockBlastGame.prototype.generatePieces = function () {
   this.pieces = [];
   for (var i = 0; i < 3; i++) {
     var color = 1 + Math.floor(Math.random() * 6);
-    this.pieces.push({ shape: BLOCK_SHAPES[Math.floor(Math.random() * BLOCK_SHAPES.length)], used: false, color: color });
+    this.pieces.push({ shape: randomBlockShape(), used: false, color: color });
   }
   this.selected = -1;
   this.renderTray();
@@ -633,7 +662,7 @@ BlockBlastGame.prototype.rerollPieces = function () {
   } while (!this.hasAnyMove() && attempts < 40);
 
   if (!this.hasAnyMove()) {
-    this.pieces[0] = { shape: BLOCK_SHAPES[0], used: false, color: 1 + Math.floor(Math.random() * 6) };
+    this.pieces[0] = { shape: transformBlockShape(BLOCK_SHAPES[0], 0, false), used: false, color: 1 + Math.floor(Math.random() * 6) };
     this.renderTray();
   }
   this.status.textContent = "Фигуры заменены. Поле и открытая фотография сохранены.";

@@ -63,6 +63,26 @@
 
   function forceDayIndex() {
     var q = new URLSearchParams(location.search);
+    if (q.has("day")) {
+      var d = parseInt(q.get("day"), 10);
+      if (!isNaN(d) && d >= 1 && d <= DAYS) {
+        window.__simulatedDay = d - 1;
+        state.started = true;
+        if (d === 1 && q.has("reset")) {
+          // let intro run
+        } else {
+          state.introSeen = true;
+          state.grootPlanted = true;
+        }
+        if (d >= 4) state.venomInfected = true;
+        if (d >= 5) state.venomControlled = true;
+        // Clean speechSeen, won, givenDay for this simulated day so the full storyline experience plays
+        state.speechSeen = state.speechSeen.filter(function (x) { return x !== (d - 1); });
+        state.won = state.won.filter(function (x) { return x !== (d - 1); });
+        state.givenDay = state.givenDay.filter(function (x) { return x !== (d - 1); });
+        save();
+      }
+    }
     if (q.has("preview")) {
       var n = parseInt(q.get("preview"), 10);
       window.__previewDay = Math.max(0, Math.min(DAYS - 1, (isNaN(n) ? 1 : n) - 1));
@@ -112,6 +132,7 @@
   }
 
   function currentDayIdx() {
+    if (window.__simulatedDay != null) return window.__simulatedDay;
     if (window.__previewDay != null) return window.__previewDay;
     if (!state.started) {
       state.started = true;
@@ -1194,6 +1215,7 @@
     if (!state) return false;
     if (state.givenDay && state.givenDay.indexOf(i) !== -1) return true;
     if (state.won && state.won.indexOf(i) !== -1) return true;
+    if (window.__simulatedDay != null && i < window.__simulatedDay) return true;
     if (window.__previewDay != null && i < window.__previewDay) return true;
     return false;
   }

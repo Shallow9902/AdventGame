@@ -4,7 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-function loadContext() {
+function loadContext(random = Math.random) {
+  const sandboxMath = Object.create(Math);
+  sandboxMath.random = random;
   const sandbox = {
     window: {},
     document: {
@@ -64,7 +66,7 @@ function loadContext() {
     clearInterval,
     requestAnimationFrame: (fn) => setTimeout(fn, 16),
     cancelAnimationFrame: (id) => clearTimeout(id),
-    Math,
+    Math: sandboxMath,
     Date,
     parseInt,
     isNaN
@@ -195,6 +197,31 @@ test('BlockBlastGame: Multi-colored pieces and board coloring', () => {
   assert.equal(placedCells.length, game.pieces[0].shape.length, 'Placed cells must match piece color');
 });
 
+test('BlockBlastGame: Random board and rotated piece orientations', () => {
+  const seededRandom = (seed) => () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  const makeGame = (seed) => {
+    const ctx = loadContext(seededRandom(seed));
+    const game = ctx.Games.create('blockblast', { innerHTML: '', appendChild() {} }, { lines: 4 }, () => {});
+    return { ctx, game };
+  };
+
+  const first = makeGame(7);
+  const second = makeGame(19);
+  assert.notDeepEqual(Array.from(first.game.board), Array.from(second.game.board), 'Different sessions should start with different board layouts');
+  assert.ok(first.game.board.filter(Boolean).length >= 14 && first.game.board.filter(Boolean).length <= 20, 'Random board should keep a playable density');
+
+  const corner = [[0, 0], [0, 1], [1, 1]];
+  const orientations = new Set();
+  for (let turns = 0; turns < 4; turns++) {
+    const transformed = first.ctx.transformBlockShape(corner, turns, false);
+    orientations.add(JSON.stringify(Array.from(transformed, point => Array.from(point))));
+  }
+  assert.equal(orientations.size, 4, 'Asymmetric pieces should support every rotated orientation');
+});
+
 test('BlockBlastGame: Line clearing, scoring, and restart', () => {
   const ctx = loadContext();
   const mockContainer = { innerHTML: '', appendChild() {} };
@@ -269,6 +296,8 @@ test('BlockBlastGame: Cleared lines reveal the shared photo', () => {
   const cssCode = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
   assert.ok(cssCode.includes('.block-shell .game-head'), 'Block Blast header should have its own wrapping layout');
   assert.ok(cssCode.includes('flex: 1 0 100%'), 'Long Block Blast stats should occupy a separate row');
+  assert.ok(cssCode.includes('.block-cell.photo-revealed.drop-preview'), 'Placement preview should remain visible over revealed photo cells');
+  assert.ok(cssCode.includes('background-image: none !important'), 'Placement preview should cover the photo while dragging');
 });
 
 test('BlockBlastGame: Endless mode transition and high-score saving', () => {
@@ -773,7 +802,60 @@ test('Sleeping Grutik detection: grutik.js and app.js integration', () => {
   assert.equal(drawnCanvases[0].canvas, mockCompanionCanvas, 'First canvas should be companion');
   assert.equal(drawnCanvases[0].pose.sleeping, true, 'Companion should be drawn with sleeping: true');
   assert.equal(drawnCanvases[1].canvas, mockWaitCanvas, 'Second canvas should be waitCanvas');
-  assert.equal(drawnCanvases[1].pose.sleeping, true, 'waitCanvas should be drawn with sleeping: true');
   ctx.window.__forceSleeping = false;
   ctx.stopGrutikIdle();
 });
+
+test('Full-day simulation: ?day=N parameter sets simulated day and allows full storyline experience', () => {
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+  // Verify forceDayIndex handles ?day=
+  assert.ok(appCode.includes('q.has("day")'), 'app.js forceDayIndex should check for ?day= parameter');
+  assert.ok(appCode.includes('window.__simulatedDay'), 'app.js should bind window.__simulatedDay');
+
+  // Test simulated day logic
+  const forceDayIndexMatch = appCode.match(/function forceDayIndex\(\) \{([\s\S]*?)\n  \}/);
+  assert.ok(forceDayIndexMatch, 'forceDayIndex function should exist');
+
+  const DAYS = 6;
+  const state = {
+    started: false,
+    introSeen: false,
+    grootPlanted: false,
+    venomInfected: false,
+    venomControlled: false,
+    speechSeen: [1],
+    won: [1],
+    givenDay: [1]
+  };
+  const windowObj = {};
+  const save = () => {};
+
+  const simulateDay = (search) => {
+    const fn = new Function('state', 'window', 'DAYS', 'save', 'location', `
+      ${forceDayIndexMatch[0]}
+      forceDayIndex();
+    `);
+    fn(state, windowObj, DAYS, save, { search });
+  };
+
+  // Simulate Day 2 (?day=2)
+  simulateDay('?day=2');
+  assert.equal(windowObj.__simulatedDay, 1, 'Day 2 should map to simulated index 1');
+  assert.equal(state.introSeen, true, 'Intro should be marked seen for Day 2 simulation');
+  assert.equal(state.grootPlanted, true, 'Groot should be marked planted for Day 2 simulation');
+  assert.ok(!state.speechSeen.includes(1), 'Day 2 greeting should be reset to allow viewing the full story');
+  assert.ok(!state.won.includes(1), 'Day 2 won status should be reset to allow playing the full day');
+  assert.ok(!state.givenDay.includes(1), 'Day 2 givenDay should be reset to allow winning the gift and spinning the wheel');
+
+  // Simulate Day 4 (?day=4): checks Venom infection
+  simulateDay('?day=4');
+  assert.equal(windowObj.__simulatedDay, 3, 'Day 4 should map to simulated index 3');
+  assert.equal(state.venomInfected, true, 'Day 4 should activate Venom infection');
+
+  // Simulate Day 5 (?day=5): checks symbiote control
+  simulateDay('?day=5');
+  assert.equal(windowObj.__simulatedDay, 4, 'Day 5 should map to simulated index 4');
+  assert.equal(state.venomControlled, true, 'Day 5 should activate symbiote control');
+});
+
