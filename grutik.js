@@ -55,7 +55,7 @@ var GRUTIK_STAGES = {
   "1": { growth: .43, seed: 0, leaves: 3, venom: 0, chaos: 0, heroic: 0 },
   "2": { growth: .58, seed: 0, leaves: 5, venom: 0, chaos: 0, heroic: 0 },
   "3": { growth: .78, seed: 0, leaves: 8, venom: 0, chaos: 0, heroic: 0 },
-  "4": { growth: .9, seed: 0, leaves: 9, venom: .08, chaos: .2, heroic: 0 },
+  "4": { growth: .9, seed: 0, leaves: 9, venom: 0, chaos: 0, heroic: 0 },
   "5": { growth: .98, seed: 0, leaves: 7, venom: .68, chaos: 1, heroic: 0 },
   "6": { growth: 1, seed: 0, leaves: 8, venom: .52, chaos: .35, heroic: .18 },
   "7": { growth: 1.08, seed: 0, leaves: 10, venom: .61, chaos: .18, heroic: .48 },

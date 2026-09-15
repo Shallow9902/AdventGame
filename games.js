@@ -33,6 +33,22 @@ function GameBase(container, opts, onWin) {
   head.appendChild(meta);
   this.stats = gameEl("div", "game-stats");
   head.appendChild(this.stats);
+  var isTest = this.opts.isTest || (typeof isTestMode === "function" && isTestMode()) || (typeof window !== "undefined" && (window.__testMode || window.__simulatedDay != null || window.__previewDay != null));
+  if (isTest) {
+    var skipBtn = gameEl("button", "game-btn-skip", "⏩ Пропустить");
+    skipBtn.type = "button";
+    skipBtn.setAttribute("title", "Быстро завершить мини-игру и перейти к диалогам (тест)");
+    var self = this;
+    skipBtn.addEventListener("click", function () {
+      if (typeof window !== "undefined" && typeof window.skipCurrentGame === "function") {
+        window.skipCurrentGame();
+      } else {
+        self.complete("Испытание пропущено");
+      }
+    });
+    head.appendChild(skipBtn);
+  }
+
   if (this.opts.isReplay || this.opts.onExit) {
     var exitBtn = gameEl("button", "game-btn-exit", "✕ Назад");
     exitBtn.type = "button";
@@ -1383,91 +1399,494 @@ PhotoPuzzleGame.prototype.endPhotoDrag = function (event) {
   this.tryPhotoSnap(drag.index);
 };
 
+var UNTANGLE_ROUNDS = [
+  {
+    name: "Дрейф в пустоте",
+    hint: "Сигнал из глубокого космоса запутался в звёздном ветре. Разведи нити.",
+    nodes: [
+      { x: 50, y: 14, label: "✦" },
+      { x: 84, y: 32, label: "✦" },
+      { x: 84, y: 68, label: "✦" },
+      { x: 50, y: 86, label: "✦" },
+      { x: 16, y: 68, label: "✦" },
+      { x: 16, y: 32, label: "✦" },
+      { x: 50, y: 50, label: "●" }
+    ],
+    edges: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0], [6, 0], [6, 2], [6, 4], [1, 6]],
+    scramble: [
+      { x: 84, y: 68 },
+      { x: 16, y: 32 },
+      { x: 50, y: 14 },
+      { x: 16, y: 68 },
+      { x: 84, y: 32 },
+      { x: 50, y: 86 },
+      { x: 50, y: 50 }
+    ]
+  },
+  {
+    name: "Сигнал из Бездны",
+    hint: "Чужой космический ритм пробивается сквозь тёмные помехи. Очисти каналы связи.",
+    nodes: [
+      { x: 18, y: 18, label: "✦" },
+      { x: 82, y: 18, label: "✦" },
+      { x: 82, y: 82, label: "✦" },
+      { x: 18, y: 82, label: "✦" },
+      { x: 36, y: 36, label: "✦" },
+      { x: 64, y: 36, label: "✦" },
+      { x: 64, y: 64, label: "✦" },
+      { x: 36, y: 64, label: "✦" }
+    ],
+    edges: [
+      [0, 1], [1, 2], [2, 3], [3, 0],
+      [4, 5], [5, 6], [6, 7], [7, 4],
+      [0, 4], [1, 5], [2, 6], [3, 7],
+      [0, 5]
+    ],
+    scramble: [
+      { x: 82, y: 82 },
+      { x: 82, y: 18 },
+      { x: 36, y: 64 },
+      { x: 64, y: 64 },
+      { x: 36, y: 36 },
+      { x: 18, y: 82 },
+      { x: 64, y: 36 },
+      { x: 18, y: 18 }
+    ]
+  },
+  {
+    name: "Тёмный Клинтар",
+    hint: "Симбиотическая сеть пытается замкнуть узлы. Распутай тёмную паутину.",
+    nodes: [
+      { x: 50, y: 14, label: "✦" },
+      { x: 84, y: 28, label: "✦" },
+      { x: 84, y: 72, label: "✦" },
+      { x: 50, y: 86, label: "✦" },
+      { x: 16, y: 72, label: "✦" },
+      { x: 16, y: 28, label: "✦" },
+      { x: 50, y: 36, label: "✦" },
+      { x: 66, y: 64, label: "✦" },
+      { x: 34, y: 64, label: "✦" }
+    ],
+    edges: [
+      [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0],
+      [6, 7], [7, 8], [8, 6],
+      [0, 6], [1, 6], [2, 7], [3, 7], [4, 8]
+    ],
+    scramble: [
+      { x: 66, y: 64 },
+      { x: 16, y: 72 },
+      { x: 50, y: 14 },
+      { x: 84, y: 72 },
+      { x: 34, y: 64 },
+      { x: 84, y: 28 },
+      { x: 50, y: 86 },
+      { x: 16, y: 28 },
+      { x: 50, y: 36 }
+    ]
+  },
+  {
+    name: "Созвездие «МЫ»",
+    hint: "Финальный резонанс: восстанови истинную форму нашего созвездия.",
+    nodes: [
+      { x: 50, y: 34, label: "✦" },
+      { x: 30, y: 16, label: "В", special: "vadim", name: "Вадим" },
+      { x: 14, y: 40, label: "✦" },
+      { x: 28, y: 68, label: "✦" },
+      { x: 50, y: 88, label: "♥", special: "heart" },
+      { x: 72, y: 68, label: "✦" },
+      { x: 86, y: 40, label: "✦" },
+      { x: 70, y: 16, label: "С", special: "sonya", name: "Соня" },
+      { x: 50, y: 52, label: "24.07", special: "date", name: "24.07.24" }
+    ],
+    edges: [
+      [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 0],
+      [8, 0], [8, 4], [8, 2], [8, 6]
+    ],
+    scramble: [
+      { x: 28, y: 68 },
+      { x: 70, y: 16 },
+      { x: 72, y: 68 },
+      { x: 50, y: 34 },
+      { x: 86, y: 40 },
+      { x: 30, y: 16 },
+      { x: 50, y: 88 },
+      { x: 14, y: 40 },
+      { x: 50, y: 52 }
+    ]
+  }
+];
+
+function linesCross(p1, p2, p3, p4) {
+  var d1 = (p4.x - p3.x) * (p1.y - p3.y) - (p4.y - p3.y) * (p1.x - p3.x);
+  var d2 = (p4.x - p3.x) * (p2.y - p3.y) - (p4.y - p3.y) * (p2.x - p3.x);
+  var d3 = (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x);
+  var d4 = (p2.x - p1.x) * (p4.y - p1.y) - (p2.y - p1.y) * (p4.x - p1.x);
+  var eps = 0.0001;
+  return (((d1 > eps && d2 < -eps) || (d1 < -eps && d2 > eps)) &&
+          ((d3 > eps && d4 < -eps) || (d3 < -eps && d4 > eps)));
+}
+
+function relationshipDays(dateString) {
+  var parts = String(dateString || "").split("-");
+  if (parts.length !== 3) return 0;
+  var start = Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  var now = new Date();
+  var current = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.max(1, Math.floor((current - start) / 86400000) + 1);
+}
+
+function relationshipDayWord(days) {
+  var mod100 = days % 100;
+  var mod10 = days % 10;
+  if (mod100 >= 11 && mod100 <= 14) return "дней";
+  if (mod10 === 1) return "день";
+  if (mod10 >= 2 && mod10 <= 4) return "дня";
+  return "дней";
+}
+
 function EchoGame(container, opts, onWin) {
   GameBase.call(this, container, opts, onWin);
-  this.lengths = opts.lengths || [3, 4, 5, 6];
+  this.relationship = opts.relationship || { him: "Вадим", her: "Сонечка", shortHer: "Соня", startDate: "2024-07-24", constellationCode: "VS-240724" };
   this.round = 0;
-  this.input = 0;
-  this.locked = true;
-  this.arena.classList.add("echo-arena");
-  this.grid = gameEl("div", "echo-grid");
-  this.tiles = [];
+  this.totalRounds = UNTANGLE_ROUNDS.length;
+  this.activeDrag = null;
+  this.roundSolved = false;
+  this.crossingsCount = 0;
+
+  this.arena.classList.add("untangle-arena");
+
+  this.sky = gameEl("div", "untangle-sky");
+  this.sky.appendChild(gameEl("div", "untangle-nebula"));
+
+  this.board = gameEl("div", "untangle-board");
+  this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  this.svg.setAttribute("class", "untangle-svg");
+  this.svg.setAttribute("viewBox", "0 0 100 100");
+  this.svg.setAttribute("preserveAspectRatio", "none");
+  this.board.appendChild(this.svg);
+
+  this.starsContainer = gameEl("div", "untangle-stars");
+  this.board.appendChild(this.starsContainer);
+  this.sky.appendChild(this.board);
+
+  var controls = gameEl("div", "untangle-controls");
+  this.crossBadge = gameEl("div", "untangle-cross-badge");
+  controls.appendChild(this.crossBadge);
+
+  var resetBtn = gameEl("button", "untangle-reset-btn", "↺ Сброс");
+  resetBtn.type = "button";
+  resetBtn.setAttribute("title", "Сбросить звёзды в начало раунда");
   var self = this;
-  for (var i = 0; i < 9; i++) {
-    var tile = gameEl("button", "echo-tile", GAME_SYMBOLS[i]);
-    tile.setAttribute("aria-label", "Ячейка " + (i + 1));
-    tile.addEventListener("click", (function (idx) { return function () { self.pick(idx); }; })(i));
-    this.grid.appendChild(tile);
-    this.tiles.push(tile);
-  }
-  this.arena.appendChild(this.grid);
-  this.updateStats();
-  this.gate("Запомнить сигнал", "Сетка покажет последовательность. Повтори её без подсказок; ошибка повторяет текущий раунд.", function () {
-    self.newSequence();
+  resetBtn.addEventListener("click", function () {
+    if (!self.roundSolved) self.resetRoundPositions();
   });
+  controls.appendChild(resetBtn);
+  this.sky.appendChild(controls);
+
+  var days = relationshipDays(this.relationship.startDate);
+  this.registry = gameEl("div", "astro-registry");
+  this.registry.appendChild(gameEl("strong", null, this.relationship.constellationCode));
+  this.registry.appendChild(gameEl("span", null, days + " " + relationshipDayWord(days) + " на одной орбите"));
+  this.sky.appendChild(this.registry);
+
+  this.arena.appendChild(this.sky);
+
+  this.startRound(0);
+  this.gate("Распутать нити", "Тёмная субстанция стянула звёздную карту в тугие узлы. Перетаскивай звёзды так, чтобы ни одна линия не пересекалась с другой.", function () {});
 }
 
 EchoGame.prototype = Object.create(GameBase.prototype);
 EchoGame.prototype.constructor = EchoGame;
 
-EchoGame.prototype.updateStats = function () {
-  this.stats.textContent = Math.min(this.round + 1, this.lengths.length) + " / " + this.lengths.length;
-};
+EchoGame.prototype.startRound = function (roundIdx) {
+  this.round = roundIdx;
+  this.roundSolved = false;
+  var data = UNTANGLE_ROUNDS[this.round];
+  this.currentData = data;
 
-EchoGame.prototype.newSequence = function () {
-  var length = this.lengths[this.round];
-  this.sequence = [];
-  while (this.sequence.length < length) {
-    var n = Math.floor(Math.random() * 9);
-    if (this.sequence[this.sequence.length - 1] !== n) this.sequence.push(n);
-  }
-  this.showSequence();
-};
-
-EchoGame.prototype.showSequence = function () {
-  this.locked = true;
-  this.input = 0;
-  this.status.textContent = "Смотри внимательно...";
-  var self = this;
-  this.sequence.forEach(function (idx, step) {
-    self.later(function () {
-      self.tiles[idx].classList.add("signal");
-      self.later(function () { self.tiles[idx].classList.remove("signal"); }, 420);
-    }, 360 + step * 650);
+  this.positions = data.scramble.map(function (p) {
+    return { x: p.x, y: p.y };
   });
-  this.later(function () {
-    self.locked = false;
-    self.status.textContent = "Теперь повтори последовательность.";
-  }, 500 + this.sequence.length * 650);
+
+  this.buildSvgLines();
+  this.buildStarElements();
+  this.updateCrossings();
+  this.updateStats();
+  this.status.textContent = data.hint;
 };
 
-EchoGame.prototype.pick = function (idx) {
-  if (this.locked || this.done) return;
-  var expected = this.sequence[this.input];
-  this.tiles[idx].classList.add(idx === expected ? "correct" : "wrong");
-  var self = this;
-  this.later(function () { self.tiles[idx].classList.remove("correct", "wrong"); }, 280);
-  if (idx !== expected) {
-    this.locked = true;
-    this.status.textContent = "Сигнал сбился. Последовательность повторится.";
-    this.root.classList.add("soft-shake");
-    this.later(function () {
-      self.root.classList.remove("soft-shake");
-      self.showSequence();
-    }, 700);
-    return;
+EchoGame.prototype.resetRoundPositions = function () {
+  var data = this.currentData;
+  this.positions = data.scramble.map(function (p) {
+    return { x: p.x, y: p.y };
+  });
+  this.updateElementsPosition();
+  this.updateCrossings();
+  this.playTone(180, 0.1, "sine");
+};
+
+EchoGame.prototype.buildSvgLines = function () {
+  this.svg.innerHTML = "";
+  this.lineElements = [];
+  var edges = this.currentData.edges;
+  for (var i = 0; i < edges.length; i++) {
+    var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("class", "untangle-line");
+    this.svg.appendChild(line);
+    this.lineElements.push(line);
   }
-  this.input++;
-  if (this.input === this.sequence.length) {
-    this.locked = true;
-    this.round++;
-    if (this.round >= this.lengths.length) {
-      this.complete("Эхо восстановлено");
-      return;
+  this.updateLinesCoordinates();
+};
+
+EchoGame.prototype.buildStarElements = function () {
+  this.starsContainer.innerHTML = "";
+  this.starElements = [];
+  var nodes = this.currentData.nodes;
+  var self = this;
+
+  for (var i = 0; i < nodes.length; i++) {
+    (function (idx) {
+      var n = nodes[idx];
+      var star = gameEl("button", "untangle-star");
+      star.type = "button";
+      star.setAttribute("aria-label", n.name || ("Звезда " + (idx + 1)));
+
+      if (n.special) star.classList.add("star-" + n.special);
+      if (n.label) {
+        var label = gameEl("span", "star-label", n.label);
+        star.appendChild(label);
+      }
+      var core = gameEl("span", "star-core");
+      star.appendChild(core);
+
+      star.addEventListener("pointerdown", function (e) {
+        self.onStarPointerDown(idx, star, e);
+      });
+
+      self.starsContainer.appendChild(star);
+      self.starElements.push(star);
+    })(i);
+  }
+  this.updateElementsPosition();
+};
+
+EchoGame.prototype.updateLinesCoordinates = function () {
+  var edges = this.currentData.edges;
+  for (var i = 0; i < edges.length; i++) {
+    var e = edges[i];
+    var p1 = this.positions[e[0]];
+    var p2 = this.positions[e[1]];
+    var line = this.lineElements[i];
+    if (line && p1 && p2) {
+      line.setAttribute("x1", p1.x);
+      line.setAttribute("y1", p1.y);
+      line.setAttribute("x2", p2.x);
+      line.setAttribute("y2", p2.y);
     }
-    this.updateStats();
-    this.status.textContent = "Верно. Сигнал становится длиннее.";
-    this.later(function () { self.newSequence(); }, 800);
+  }
+};
+
+EchoGame.prototype.updateElementsPosition = function () {
+  for (var i = 0; i < this.starElements.length; i++) {
+    var el = this.starElements[i];
+    var p = this.positions[i];
+    if (el && p) {
+      el.style.left = p.x + "%";
+      el.style.top = p.y + "%";
+    }
+  }
+  this.updateLinesCoordinates();
+};
+
+EchoGame.prototype.onStarPointerDown = function (idx, starEl, e) {
+  if (this.roundSolved || this.done) return;
+  e.preventDefault();
+  this.activeDrag = {
+    index: idx,
+    pointerId: e.pointerId,
+    element: starEl
+  };
+  starEl.classList.add("dragging");
+  if (starEl.setPointerCapture) {
+    try { starEl.setPointerCapture(e.pointerId); } catch (err) { }
+  }
+  this.playTone(280 + idx * 40, 0.05, "sine");
+
+  var self = this;
+  var onMove = function (moveEvent) {
+    if (!self.activeDrag || self.activeDrag.index !== idx) return;
+    moveEvent.preventDefault();
+    var rect = self.board.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    var px = ((moveEvent.clientX - rect.left) / rect.width) * 100;
+    var py = ((moveEvent.clientY - rect.top) / rect.height) * 100;
+
+    px = Math.max(8, Math.min(92, px));
+    py = Math.max(8, Math.min(92, py));
+
+    self.positions[idx].x = px;
+    self.positions[idx].y = py;
+    starEl.style.left = px + "%";
+    starEl.style.top = py + "%";
+
+    self.updateLinesCoordinates();
+    self.updateCrossings();
+  };
+
+  var onUp = function (upEvent) {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onUp);
+    if (!self.activeDrag) return;
+    starEl.classList.remove("dragging");
+    self.activeDrag = null;
+    self.checkSolved();
+  };
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
+};
+
+EchoGame.prototype.updateCrossings = function () {
+  var edges = this.currentData.edges;
+  var crossedMap = {};
+  var count = 0;
+
+  for (var i = 0; i < edges.length; i++) {
+    for (var j = i + 1; j < edges.length; j++) {
+      var e1 = edges[i];
+      var e2 = edges[j];
+      // Adjacent edges sharing a vertex do not cross
+      if (e1[0] === e2[0] || e1[0] === e2[1] || e1[1] === e2[0] || e1[1] === e2[1]) continue;
+
+      if (linesCross(this.positions[e1[0]], this.positions[e1[1]], this.positions[e2[0]], this.positions[e2[1]])) {
+        crossedMap[i] = true;
+        crossedMap[j] = true;
+        count++;
+      }
+    }
+  }
+
+  for (var k = 0; k < edges.length; k++) {
+    var line = this.lineElements[k];
+    if (line) {
+      if (crossedMap[k]) {
+        line.setAttribute("class", "untangle-line crossed");
+      } else {
+        line.setAttribute("class", "untangle-line clean");
+      }
+    }
+  }
+
+  this.crossingsCount = count;
+  this.crossBadge.innerHTML = count === 0
+    ? '<span class="zero">✓ 0 пересечений</span>'
+    : '<span class="count">' + count + '</span> ' + (count === 1 ? 'пересечение' : (count < 5 ? 'пересечения' : 'пересечений'));
+
+  if (count === 0 && !this.roundSolved) {
+    this.onRoundClear();
+  }
+};
+
+EchoGame.prototype.updateStats = function () {
+  this.stats.innerHTML = '<span class="echo-round-name">' + this.currentData.name.toUpperCase() + '</span> ' + (this.round + 1) + ' / ' + this.totalRounds;
+};
+
+EchoGame.prototype.checkSolved = function () {
+  if (this.crossingsCount === 0 && !this.roundSolved) {
+    this.onRoundClear();
+  }
+};
+
+EchoGame.prototype.onRoundClear = function () {
+  this.roundSolved = true;
+  var self = this;
+
+  for (var i = 0; i < this.lineElements.length; i++) {
+    this.lineElements[i].setAttribute("class", "untangle-line solved");
+  }
+  for (var j = 0; j < this.starElements.length; j++) {
+    this.starElements[j].classList.add("solved");
+  }
+
+  this.playChord([523.25, 659.25, 783.99]); // C - E - G major chord
+
+  if (this.round < this.totalRounds - 1) {
+    this.status.textContent = "Узел распутан! Нити засияли чистым светом.";
+    this.later(function () {
+      self.startRound(self.round + 1);
+    }, 1100);
+  } else {
+    this.finishGame();
+  }
+};
+
+EchoGame.prototype.finishGame = function () {
+  this.status.textContent = "Сонечка, моё небо начинается с тебя.";
+  this.stats.innerHTML = '<span class="echo-round-name">СОЗВЕЗДИЕ СВЕТИТСЯ</span>';
+
+  this.board.classList.add("constellation-revealed");
+
+  var card = gameEl("div", "echo-final-card astro-final-card");
+  card.appendChild(gameEl("span", "echo-final-kicker", this.relationship.constellationCode));
+  card.appendChild(gameEl("strong", null, "Созвездие «24 июля»"));
+  card.appendChild(gameEl("p", null, "Вадим · Соня"));
+  card.appendChild(gameEl("em", null, "Нити сошлись. Все координаты на месте."));
+
+  var continueBtn = gameEl("button", "echo-final-btn", "Продолжить ✦");
+  continueBtn.type = "button";
+  continueBtn.setAttribute("title", "Вернуться к Грутику");
+  var self = this;
+  var finished = false;
+  var proceed = function () {
+    if (finished) return;
+    finished = true;
+    continueBtn.disabled = true;
+    self.complete("Звёздные нити распутаны");
+  };
+
+  continueBtn.addEventListener("click", proceed);
+  card.appendChild(continueBtn);
+  this.sky.appendChild(card);
+
+  this.playChord([523.25, 659.25, 783.99, 1046.50]); // Full C major octave chord
+};
+
+EchoGame.prototype.playTone = function (freq, duration, type) {
+  try {
+    var AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return;
+    if (!this.audioContext) this.audioContext = new AudioCtor();
+    if (this.audioContext.state === "suspended") this.audioContext.resume();
+    var osc = this.audioContext.createOscillator();
+    var gain = this.audioContext.createGain();
+    osc.type = type || "sine";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.001, this.audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.12, this.audioContext.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, this.audioContext.currentTime + (duration || 0.2));
+    osc.connect(gain);
+    gain.connect(this.audioContext.destination);
+    osc.start();
+    osc.stop(this.audioContext.currentTime + (duration || 0.2) + 0.05);
+  } catch (e) { }
+};
+
+EchoGame.prototype.playChord = function (freqs) {
+  var self = this;
+  freqs.forEach(function (f, i) {
+    self.later(function () {
+      self.playTone(f, 0.45, "triangle");
+    }, i * 70);
+  });
+};
+
+EchoGame.prototype.destroy = function () {
+  GameBase.prototype.destroy.call(this);
+  if (this.audioContext && this.audioContext.close) {
+    try { this.audioContext.close(); } catch (e) { }
   }
 };
 

@@ -63,6 +63,9 @@
 
   function forceDayIndex() {
     var q = new URLSearchParams(location.search);
+    if (q.has("test") || q.has("debug") || q.has("skip")) {
+      window.__testMode = true;
+    }
     if (q.has("day")) {
       var d = parseInt(q.get("day"), 10);
       if (!isNaN(d) && d >= 1 && d <= DAYS) {
@@ -94,6 +97,32 @@
     if (q.has("sleep")) {
       window.__forceSleeping = true;
     }
+  }
+
+  function isTestMode() {
+    if (typeof window === "undefined") return true;
+    if (window.__testMode) return true;
+    if (window.__simulatedDay != null || window.__previewDay != null) return true;
+    try {
+      if (typeof location !== "undefined") {
+        var q = new URLSearchParams(location.search);
+        if (q.has("test") || q.has("debug") || q.has("dev") || q.has("day") || q.has("preview") || q.has("skip")) {
+          return true;
+        }
+        if (location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.protocol === "file:") {
+          return true;
+        }
+      }
+      if (typeof localStorage !== "undefined") {
+        if (localStorage.getItem("advent_test") === "1" || localStorage.getItem("advent_debug") === "1") {
+          return true;
+        }
+      }
+    } catch (e) {}
+    return false;
+  }
+  if (typeof window !== "undefined") {
+    window.isTestMode = isTestMode;
   }
 
   function $(id) { return document.getElementById(id); }
@@ -199,7 +228,7 @@
   var dayGames = [
     { type: "memory", mark: "01", icon: "🌸", badge: "Память", desc: "12 пар наших фотографий", kicker: "ДЕНЬ 01 · ПАМЯТЬ", title: "Наши моменты", instruction: "Найди двенадцать пар фотографий.", photos: SITE_CONFIG.memoryPhotos, centerPhoto: SITE_CONFIG.memoryCenterPhoto },
     { type: "blockblast", mark: "02", icon: "🌿", badge: "Тактика", desc: "Бесконечный режим на рекорд", kicker: "ДЕНЬ 02 · ТАКТИКА", title: "Block Blast: корни", instruction: "Перетаскивай фигуры и открывай нашу фотографию.", lines: 7, photo: "photos/blockblast.jpg" },
-    { type: "echo", mark: "03", icon: "⚡", badge: "Память", desc: "Код сигналов Грутика", kicker: "ДЕНЬ 03 · ПАМЯТЬ", title: "Эхо сигнала", instruction: "Запомни код, который нашёл Грутик.", lengths: [3, 4, 5, 6] },
+    { type: "echo", mark: "03", icon: "✦", badge: "Головоломка", desc: "4 космических сектора", kicker: "ДЕНЬ 03 · ГОЛОВОЛОМКА", title: "Звёздные нити", instruction: "Перетаскивай звёзды так, чтобы нити не пересекались.", relationship: SITE_CONFIG.relationship },
     { type: "photoPuzzle", mark: "04", icon: "🧩", badge: "Пазл", desc: "Фотопазл из 16 кусочков", kicker: "ДЕНЬ 04 · ПАМЯТЬ", title: "Собери нашу фотографию", instruction: "Соедини шестнадцать фигурных деталей.", photo: SITE_CONFIG.couplePhoto, size: 4 },
     { type: "circuit", mark: "05", icon: "💡", badge: "Логика", desc: "Восстановление цепи питания", kicker: "ДЕНЬ 05 · ЛОГИКА", title: "Живая схема", instruction: "Верни питание колесу." },
     { type: "finale", mark: "06", icon: "🚀", badge: "Финал", desc: "3 фазы протокола SONECHKA", kicker: "ДЕНЬ 06 · ФИНАЛ", title: "Протокол SONECHKA", instruction: "Три фазы. Один финальный запуск." }
@@ -294,6 +323,7 @@
     gru: "Грутик",
     venom: "ВЕНОМ",
     sonechka: "Сонечка",
+    whisper: "Шёпот из темноты",
     nar: "",
     raw: "…"
   };
@@ -310,6 +340,9 @@
     var lineEl = $("storyLine");
     if (s.who === "raw") {
       lineEl.className = "story-line raw";
+      lineEl.textContent = s.text;
+    } else if (s.who === "whisper") {
+      lineEl.className = "story-line whisper";
       lineEl.textContent = s.text;
     } else if (s.trans) {
       lineEl.className = "story-line has-trans";
@@ -445,6 +478,79 @@
         c.fill();
       } catch (e) { }
       setTimeout(function () { d3.remove(); }, 1300);
+    } else if (name === "venomLurk") {
+      var dLurk = makeEl("div", "fx-venom-lurk");
+      var cvs = makeEl("canvas");
+      cvs.width = 600; cvs.height = 520;
+      dLurk.appendChild(cvs);
+      layer.appendChild(dLurk);
+      try {
+        var cLurk = cvs.getContext("2d");
+        cLurk.fillStyle = "#030408";
+        cLurk.fillRect(0, 0, 600, 520);
+
+        // Ceiling mass / tentacles
+        cLurk.fillStyle = "#070a12";
+        cLurk.beginPath();
+        cLurk.ellipse(300, 0, 340, 180, 0, 0, Math.PI * 2);
+        cLurk.fill();
+
+        // Predatory white eyes of Venom
+        cLurk.save();
+        cLurk.shadowColor = "rgba(255, 255, 255, 0.6)";
+        cLurk.shadowBlur = 20;
+        cLurk.fillStyle = "#ffffff";
+
+        // Left eye
+        cLurk.beginPath();
+        cLurk.moveTo(170, 195);
+        cLurk.quadraticCurveTo(200, 120, 275, 160);
+        cLurk.quadraticCurveTo(240, 210, 170, 195);
+        cLurk.fill();
+
+        // Right eye
+        cLurk.beginPath();
+        cLurk.moveTo(430, 195);
+        cLurk.quadraticCurveTo(400, 120, 325, 160);
+        cLurk.quadraticCurveTo(360, 210, 430, 195);
+        cLurk.fill();
+        cLurk.restore();
+
+        // Dark inner pupils
+        cLurk.fillStyle = "#06080e";
+        cLurk.beginPath();
+        cLurk.ellipse(225, 172, 26, 18, 0.3, 0, Math.PI * 2);
+        cLurk.ellipse(375, 172, 26, 18, -0.3, 0, Math.PI * 2);
+        cLurk.fill();
+
+        // Brow ridges
+        cLurk.strokeStyle = "#080b12";
+        cLurk.lineWidth = 14;
+        cLurk.lineCap = "round";
+        cLurk.beginPath();
+        cLurk.moveTo(145, 140); cLurk.lineTo(285, 155);
+        cLurk.moveTo(455, 140); cLurk.lineTo(315, 155);
+        cLurk.stroke();
+
+        // Subtle jagged smirk in darkness
+        cLurk.strokeStyle = "rgba(255, 255, 255, 0.85)";
+        cLurk.lineWidth = 2.5;
+        cLurk.lineCap = "round";
+        cLurk.beginPath();
+        cLurk.moveTo(210, 260);
+        cLurk.quadraticCurveTo(300, 305, 390, 260);
+        cLurk.stroke();
+        cLurk.fillStyle = "#f8fafc";
+        for (var t = 225; t <= 375; t += 18) {
+          var yMid = 260 + Math.sin((t - 210) / 180 * Math.PI) * 35;
+          cLurk.beginPath();
+          cLurk.moveTo(t - 6, yMid - 2);
+          cLurk.lineTo(t, yMid + 12);
+          cLurk.lineTo(t + 6, yMid - 2);
+          cLurk.closePath();
+          cLurk.fill();
+        }
+      } catch (e) { }
     } else if (name === "peekBlack") {
       var d4 = makeEl("div", "fx-blob peek");
       d4.appendChild(makeEl("span", "b-eye"));
@@ -738,28 +844,36 @@
     ],
     [
       S(3),
-      L("gru", "Я есть Грутик!", "Смотри, я стал выше и сильнее!"),
-      L("nar", "Грутик, кажется, подрос. Ветки стали крепче, и он уверенней стоит в горшке."),
-      F("flash"),
-      F("boom", 400),
-      W(900),
-      L("nar", "Что-то маленькое чёрное упало рядом с горшком. Грутик замирает."),
-      L("gru", "Я есть... Грутик?", "Что это за чёрная жижа?"),
-      L("nar", "Капля шевелится. Она двигается к горшку, будто принюхиваясь."),
-      C("day3_drop", "Что делать с каплей?", [
-        { text: "⚠️ Грутик, не трогай!", steps: [
-          L("sonechka", "Лучше это не трогай."),
-          L("nar", "Грутик кивает. Но всё равно тянет руку."),
-          L("nar", "Капля отпрыгивает и исчезает за экраном. Грутик разочарованно шелестит.")
+      L("nar", "За ночь Грутик заметно вытянулся. На макушке шелестит новый побег — он ловит едва уловимые вибрации воздуха."),
+      L("gru", "Я есть Грутик!", "Я расту! И чувствую далёкие сигналы!"),
+      L("nar", "Как дитя космической расы, Грутик чутко слышит эхо звёзд. Но вдруг он тревожно замирает."),
+      W(500),
+      L("raw", "ТУК.  ТУК-ТУК."),
+      W(600),
+      L("nar", "Этот ритм пришёл не из комнаты. Он отдаётся в корнях странным эхом — будто волна из тёмного сектора космоса."),
+      L("gru", "Я есть... Грутик?", "Это зов... из далёкого космоса."),
+      F("peekBlack", 500),
+      L("nar", "По краю горшка бесшумно скользит капля смолянисто-чёрной материи. Она поглощает свет, словно осколок межзвёздной пустоты."),
+      L("raw", "ТУК.  ТУК-ТУК."),
+      L("nar", "Она пульсирует тем же ритмом. Словно космический странник, столетиями дрейфовавший сквозь звёзды и нашедший живое тепло."),
+      C("day3_drop", "Как поступишь?", [
+        { text: "🛡️ Заслонить Грутика", steps: [
+          L("nar", "Ты прикрываешь горшок ладонью. Капля замирает у кончиков пальцев."),
+          L("nar", "На её вязкой поверхности на миг проступает белое пятнышко — хищный разрез глаза симбиота."),
+          L("gru", "Я есть Грутик...", "Она прилетела из звёздной тьмы... Она наблюдает."),
+          L("nar", "Капля отступает в тень, но космический зов в корнях только нарастает.")
         ]},
-        { text: "🔍 Посмотреть поближе", steps: [
-          L("nar", "Ты наклоняешься ближе. Капля замирает, будто смотрит на тебя."),
-          L("nar", "А потом резко убегает и прячется. Грутик озадаченно моргает."),
-          L("gru", "Я есть Грутик...", "Она какая-то подозрительная...")
+        { text: "🔍 Прислушаться к космическому сигналу", steps: [
+          L("nar", "Ты наклоняешься ближе. Капля чутко пульсирует в такт звёздным волнам."),
+          L("nar", "Грутик отвечает осторожным щелчком ветви — на языке далёких планет. Капля вздрагивает, признавая в нём космического собрата."),
+          L("gru", "Я есть Грутик?", "Ты скиталась меж звёзд? Ты искала нас?"),
+          L("nar", "Капля вытягивается в тонкий жгут и скользит под горшок, оставляя след звёздной пыли.")
         ]}
       ]),
-      L("nar", "Это пока только намёк. Но что-то подсказывает — вы ещё встретитесь."),
-      B("Играть", markSeen(2))
+      L("nar", "На коре горшка вспыхивает проекция звёздного сектора. Но чёрная симбиотическая материя запутала звёздные нити в тугие узлы, искажая координаты."),
+      L("gru", "Я есть Грутик...", "Сигнал сбит! Нити созвездий перепутались в темноте..."),
+      L("nar", "Чтобы очистить космический канал связи и понять, кто послал этот сигнал, нужно расставить звёзды так, чтобы ни одна линия не пересекалась."),
+      B("Распутать звёздные нити", markSeen(2))
     ],
     [
       S(4),
@@ -912,13 +1026,21 @@
       B("Крутить колесо")
     ],
     [
-      S(4),
+      S(3),
       F("wheelIn"),
-      L("nar", "Последняя ячейка сигнала вспыхивает. Эхо затихает."),
-      L("nar", "Колесо снова работает. Грутик облегчённо выдыхает."),
+      L("nar", "Последний узел распутан! Четыре звёздных сектора очищены от помех, и космические нити вспыхивают чистым сиянием."),
+      F("glow", 300),
+      L("nar", "Звёздные линии сходятся в идеальную форму сердца — персонального созвездия."),
+      L("gru", "Я есть Грутик!", "Никаких помех! Сигнал чистый, как далёкие звёзды!"),
+      L("nar", "В узлах созвездия сияют две путеводные звезды: «В» и «С». А в центре сияет дата — 24.07.24."),
+      L("gru", "Я есть Грутик!", "Вот координаты нашей связи. Вадим и Сонечка!"),
+      L("nar", "Нити сплетаются в единое слово: «МЫ». Гармоничный космический импульс пробегает по корням и будит колесо подарков."),
+      W(500),
+      L("raw", "МЫ..."),
+      L("nar", "Из-под горшка доносится вкрадчивый шёпот. Существо из звёздной тьмы повторяет это слово, впитывая свет."),
       F("peekBlack", 400),
-      L("gru", "Я есть Грутик.", "Хух... сигнал пойман."),
-      L("nar", "Из-за горшка быстро выглядывает что-то чёрное. И прячется. Грутик делает вид, что не заметил."),
+      L("nar", "Чёрная материя на мгновение тянется к Грутику, пробуя его тепло, и бесшумно скрывается в тени."),
+      L("gru", "Я есть Грутик?", "Оно учится... Оно теперь знает это слово?"),
       B("Крутить колесо")
     ],
     [
@@ -1025,14 +1147,30 @@
       B("До завтра!")
     ],
     [
-      S(4),
-      L("gru", "Я есть Грутик.", "Подарок доставлен."),
+      S(3),
+      L("nar", "Подарок открыт, но Грутик не может оторвать взгляда от стены. Его побеги взволнованно подрагивают."),
+      L("gru", "Я есть Грутик...", "Космический гость не ушёл. Я чувствую холод звёздной бездны прямо здесь..."),
       F("peekBlack", 500),
-      W(800),
-      L("nar", "Из-за горшка на секунду появляется маленький чёрный отросток."),
-      L("nar", "Грутик косится на него. Отросток прячется."),
-      L("gru", "Я есть Грутик?", "Кажется, он тоже заглядывается на коробку..."),
-      L("nar", "Грутик, похоже, чувствует: завтра будет интересно."),
+      W(600),
+      L("nar", "Тень за горшком становится неестественно плотной и начинает медленно подниматься вверх по стене."),
+      C("day3_night", "Что скажешь Грутику на ночь?", [
+        { text: "🤝 Мы готовы к любым космическим гостям!", steps: [
+          L("gru", "Я есть Грутик.", "С тобой мне ничего не страшно. Даже чужие из глубин космоса."),
+          L("nar", "Грутик храбро расправляет веточки, стараясь казаться грозным Стражем Галактики.")
+        ]},
+        { text: "🌙 Ложись спать, малыш. Утро вечера мудренее", steps: [
+          L("gru", "Я есть Грутик...", "Хорошо. Закрою глазки..."),
+          L("nar", "Он сворачивается клубочком в горшке, но побеги чутко приподняты.")
+        ]}
+      ]),
+      L("nar", "Грутик уютно устраивается в горшочке и тихо засыпает."),
+      L("nar", "Свет в комнате гаснет. Смоляная материя бесшумно уползает вверх по стене — к самому потолку..."),
+      F("venomLurk", 600),
+      L("nar", "В темноте под потолком медленно раскрываются два огромных, хищных белых глаза..."),
+      W(400),
+      L("whisper", "«Мы... нашли наш новый дом...»"),
+      W(300),
+      L("nar", "Шелест щупалец. Тень затаилась наверху, прямо над спящим Грутиком... готовясь к прыжку."),
       B("До завтра!")
     ],
     [
@@ -1266,13 +1404,36 @@
     return count;
   }
 
+  function skipCurrentGame() {
+    if (!currentGame) return;
+    if (currentGame.done) return;
+    currentGame.done = true;
+    if (typeof currentGame.clearAsync === "function") {
+      currentGame.clearAsync();
+    }
+    if (typeof currentGame.onWin === "function") {
+      var win = currentGame.onWin;
+      win();
+    } else if (typeof currentGame.complete === "function") {
+      currentGame.complete("Испытание пропущено");
+    }
+  }
+
   function launchReplayGame(dayIdx) {
     hideScreens();
     $("screenGame").classList.add("active");
     var topNav = $("gameTopNav");
-    if (topNav) topNav.classList.remove("hidden");
-
     var exitBtn = $("gameExitBtn");
+    var skipBtn = $("gameSkipBtn");
+    if (topNav) {
+      topNav.classList.remove("hidden");
+      if (exitBtn) exitBtn.classList.remove("hidden");
+      if (skipBtn) {
+        if (isTestMode()) skipBtn.classList.remove("hidden");
+        else skipBtn.classList.add("hidden");
+      }
+    }
+
     if (exitBtn) {
       exitBtn.onclick = function () {
         if (currentGame) {
@@ -1289,6 +1450,7 @@
     for (var k in cfg) copy[k] = cfg[k];
     copy.stage = grutikStage();
     copy.isReplay = true;
+    copy.isTest = isTestMode();
     if (cfg.type === "blockblast") {
       copy.endless = true;
     }
@@ -1343,21 +1505,28 @@
   function renderGame(dayIdx) {
     $("screenGame").classList.add("active");
     var topNav = $("gameTopNav");
-    if (topNav) topNav.classList.add("hidden");
+    var exitBtn = $("gameExitBtn");
+    var skipBtn = $("gameSkipBtn");
+    if (topNav) {
+      if (isTestMode()) {
+        topNav.classList.remove("hidden");
+        if (skipBtn) skipBtn.classList.remove("hidden");
+        if (exitBtn) exitBtn.classList.add("hidden");
+      } else {
+        topNav.classList.add("hidden");
+        if (skipBtn) skipBtn.classList.add("hidden");
+      }
+    }
     var cfg = dayGames[dayIdx % dayGames.length];
     var copy = {};
     for (var k in cfg) copy[k] = cfg[k];
     copy.stage = grutikStage();
+    copy.isTest = isTestMode();
     var area = $("gameArea");
     area.innerHTML = "";
     currentGame = Games.create(cfg.type, area, copy, function () {
       if (state.won.indexOf(dayIdx) === -1) state.won.push(dayIdx);
       save();
-      if (window.__previewDay != null) {
-        try { render(); } catch (e) { }
-        try { confetti(); } catch (e) { }
-        return;
-      }
       var scene = POSTWIN[dayIdx] || [];
       if (scene.length) playStory(scene, function () {
         render();
@@ -1640,11 +1809,6 @@
     save();
     updateGrutikBar();
 
-    if (window.__previewDay != null) {
-      render();
-      return;
-    }
-
     var isLast = state.givenDay.length >= DAYS;
     var scene = (gift.id === "g6" || dayIdx === 3) && !isLast ? AFTERGIFT[3] : afterGiftScene(dayIdx, isLast);
     if (scene && scene.length) playStory(scene, function () { render(); });
@@ -1693,6 +1857,40 @@
       storyTap();
     });
 
+    var skipBtn = $("gameSkipBtn");
+    if (skipBtn) {
+      skipBtn.onclick = function () {
+        skipCurrentGame();
+      };
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("keydown", function (e) {
+        if ((e.shiftKey && (e.key === "S" || e.key === "s" || e.key === "Ы" || e.key === "ы")) || e.key === "F2") {
+          if ($("screenGame") && $("screenGame").classList.contains("active")) {
+            e.preventDefault();
+            skipCurrentGame();
+          }
+        }
+      });
+
+      window.skipCurrentGame = skipCurrentGame;
+      window.skipGame = skipCurrentGame;
+      if (!window.Advent) window.Advent = {};
+      window.Advent.skipGame = skipCurrentGame;
+      window.Advent.isTestMode = isTestMode;
+      window.Advent.enableTestMode = function () {
+        window.__testMode = true;
+        try { localStorage.setItem("advent_test", "1"); } catch (e) {}
+        render();
+      };
+      window.Advent.disableTestMode = function () {
+        window.__testMode = false;
+        try { localStorage.removeItem("advent_test"); } catch (e) {}
+        render();
+      };
+    }
+
     var compCanvas = $("grutikCanvas");
     if (compCanvas) {
       compCanvas.onclick = function () {
@@ -1718,6 +1916,8 @@
       stage: grutikStage,
       isSleeping: isSleeping,
       game: function () { return currentGame; },
+      skipGame: skipCurrentGame,
+      isTestMode: isTestMode,
       storyTap: storyTap
     };
   }

@@ -49,6 +49,9 @@ function loadContext(random = Math.random) {
         };
         return el;
       },
+      createElementNS: (ns, tag) => {
+        return sandbox.document.createElement(tag);
+      },
       documentElement: { classList: { add() {}, remove() {}, toggle() {} } },
       querySelector: () => null,
       querySelectorAll: () => []
@@ -111,6 +114,10 @@ test('Story and GREET: Day 1, Day 4, Day 5, Day 6 checks', () => {
   // Day 5
   assert.ok(!greetContent.includes('рассудить'), 'Day 5 greeting should not have old "рассудить" leftover from split');
   assert.ok(greetContent.includes('схем'), 'Day 5 greeting should mention circuit/scheme');
+
+  // Day 3
+  assert.ok(!greetContent.includes('Это пока только намёк'), 'Day 3 should not break immersion with a meta hint');
+  assert.ok(greetContent.includes('Распутать звёздные нити') || greetContent.includes('Звёздные нити'), 'Day 3 story should lead naturally into the untangle puzzle');
 
   // Day 6
   assert.ok(greetContent.includes('SONECHKA'), 'Day 6 greeting should reference Protocol SONECHKA');
@@ -220,6 +227,97 @@ test('BlockBlastGame: Random board and rotated piece orientations', () => {
     orientations.add(JSON.stringify(Array.from(transformed, point => Array.from(point))));
   }
   assert.equal(orientations.size, 4, 'Asymmetric pieces should support every rotated orientation');
+});
+
+test('EchoGame: Untangle constellation puzzle with real-time crossing calculation and rounds', () => {
+  const ctx = loadContext();
+  const relationship = ctx.SITE_CONFIG.relationship;
+  assert.equal(relationship.him, 'Вадим');
+  assert.equal(relationship.her, 'Сонечка');
+  assert.equal(relationship.startDate, '2024-07-24');
+  assert.equal(relationship.constellationCode, 'VS-240724');
+
+  const game = ctx.Games.create('echo', { innerHTML: '', appendChild() {} }, { relationship }, () => {});
+  assert.equal(game.totalRounds, 4, 'Game should have 4 progressive untangle rounds');
+  assert.equal(game.round, 0, 'Should start at round 0');
+  assert.equal(game.starElements.length, 7, 'Round 1 (Drift) should have 7 stars');
+  assert.equal(game.lineElements.length, 10, 'Round 1 should have 10 lines');
+  assert.ok(game.crossingsCount > 0, 'Round 1 should start in scrambled state with crossings');
+
+  // Solve Round 1 (Planar)
+  game.positions = ctx.UNTANGLE_ROUNDS[0].nodes.map(n => ({ x: n.x, y: n.y }));
+  game.updateCrossings();
+  assert.equal(game.crossingsCount, 0, 'Planar positions should have 0 crossings');
+  assert.equal(game.roundSolved, true, 'Round 1 should be marked solved');
+  game.clearAsync();
+
+  // Test Round 2 (Signal from the Abyss, 8 nodes, 13 edges)
+  game.startRound(1);
+  assert.equal(game.round, 1);
+  assert.equal(game.starElements.length, 8, 'Round 2 should have 8 stars');
+  assert.equal(game.lineElements.length, 13, 'Round 2 should have 13 lines');
+  assert.ok(game.crossingsCount > 0, 'Round 2 should start scrambled');
+
+  game.positions = ctx.UNTANGLE_ROUNDS[1].nodes.map(n => ({ x: n.x, y: n.y }));
+  game.updateCrossings();
+  assert.equal(game.crossingsCount, 0, 'Round 2 planar positions should have 0 crossings');
+  assert.equal(game.roundSolved, true, 'Round 2 should be solved');
+  game.clearAsync();
+
+  // Test Round 3 (Dark Klyntar, 9 nodes, 14 edges)
+  game.startRound(2);
+  assert.equal(game.round, 2);
+  assert.equal(game.starElements.length, 9, 'Round 3 should have 9 stars');
+  assert.equal(game.lineElements.length, 14, 'Round 3 should have 14 lines');
+  assert.ok(game.crossingsCount > 0, 'Round 3 should start scrambled');
+
+  game.positions = ctx.UNTANGLE_ROUNDS[2].nodes.map(n => ({ x: n.x, y: n.y }));
+  game.updateCrossings();
+  assert.equal(game.crossingsCount, 0, 'Round 3 planar positions should have 0 crossings');
+  assert.equal(game.roundSolved, true, 'Round 3 should be solved');
+  game.clearAsync();
+
+  // Test Round 4 (Constellation WE / Heart, 9 nodes, 12 edges)
+  game.startRound(3);
+  assert.equal(game.round, 3);
+  assert.equal(game.starElements.length, 9, 'Round 4 should have 9 stars');
+  assert.equal(game.lineElements.length, 12, 'Round 4 should have 12 lines');
+  assert.equal(game.currentData.name, 'Созвездие «МЫ»');
+  assert.ok(game.crossingsCount > 0, 'Round 4 should start scrambled');
+
+  // Verify special stars: Vadim, Sonya, 24.07
+  const hasVadim = game.currentData.nodes.some(n => n.name === 'Вадим' && n.special === 'vadim');
+  const hasSonya = game.currentData.nodes.some(n => n.name === 'Соня' && n.special === 'sonya');
+  const hasDate = game.currentData.nodes.some(n => n.name === '24.07.24' && n.special === 'date');
+  assert.ok(hasVadim, 'Should have Vadim star');
+  assert.ok(hasSonya, 'Should have Sonya star');
+  assert.ok(hasDate, 'Should have 24.07.24 star');
+
+  // Solve Round 4
+  game.positions = ctx.UNTANGLE_ROUNDS[3].nodes.map(n => ({ x: n.x, y: n.y }));
+  game.updateCrossings();
+  assert.equal(game.crossingsCount, 0, 'Round 4 heart constellation should have 0 crossings');
+  assert.equal(game.roundSolved, true, 'Round 4 should trigger game completion');
+
+  const finalCard = game.sky.children.find(child => child.className && child.className.includes('astro-final-card'));
+  assert.ok(finalCard, 'Final card should be appended');
+  const continueBtn = finalCard.children.find(child => child.className && child.className.includes('echo-final-btn'));
+  assert.ok(continueBtn, 'Final card must have a "Продолжить ✦" button to let player inspect constellation');
+  continueBtn.click();
+  assert.equal(game.done, true, 'Clicking continue button must complete the game');
+  game.destroy();
+
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const cssCode = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+  assert.ok(appCode.includes('Звёздные нити'));
+  assert.ok(appCode.includes('24.07.24'));
+  assert.ok(appCode.includes('наш новый дом') || appCode.includes('хищных белых глаза'), 'Night 3 should reveal Venom eyes setting up Day 4');
+  assert.ok(appCode.includes('venomLurk'), 'Night 3 should have synchronized venomLurk reveal');
+  assert.ok(cssCode.includes('.fx-venom-lurk'), 'style.css should define fx-venom-lurk');
+  assert.ok(cssCode.includes('.story-line.whisper'), 'style.css should define whisper text style');
+  assert.ok(cssCode.includes('.untangle-line'));
+  assert.ok(cssCode.includes('.untangle-star'));
+  assert.ok(cssCode.includes('.untangle-cross-badge'));
 });
 
 test('BlockBlastGame: Line clearing, scoring, and restart', () => {
@@ -428,6 +526,7 @@ test('Story Choice System: C() step constructor, choices in INTRO, GREET, POSTWI
   assert.ok(appCode.includes('C("day1_react"'), 'Day 1 should have reaction choice');
   assert.ok(appCode.includes('C("day2_style"'), 'Day 2 should have style choice');
   assert.ok(appCode.includes('C("day3_drop"'), 'Day 3 should have drop choice');
+  assert.ok(appCode.includes('C("day3_night"'), 'Day 3 should have an after-gift choice');
   assert.ok(appCode.includes('C("day4_venom"'), 'Day 4 should have venom choice');
   assert.ok(appCode.includes('C("day5_repair"'), 'Day 5 should have repair choice');
   assert.ok(appCode.includes('C("day6_ready"'), 'Day 6 should have ready choice');
@@ -470,7 +569,7 @@ test('Calendar progression: 2026-09-14 is day 1 (index 0), 2026-09-19 is day 6 (
   assert.equal(getDayIdxForDate('2026-09-20'), 5, '20 сентября и далее -> День 6 (cap at index 5)');
 });
 
-test('Gifts configuration: 9 items, inactive 4, 7, 8, and Day 4 Venomized Groot', () => {
+test('Gifts configuration: 9 items, inactive 7 and 8, and Day 4 Venomized Groot', () => {
   const ctx = loadContext();
   const pool = ctx.GIFT_POOL;
   assert.equal(pool.length, 9, 'There should be 9 gifts in GIFT_POOL');
@@ -481,8 +580,8 @@ test('Gifts configuration: 9 items, inactive 4, 7, 8, and Day 4 Venomized Groot'
     assert.equal(pool[i].photo, `photos/${i + 1}.webp`);
   }
 
-  // Verify inactive items: 4, 7, 8
-  assert.equal(pool[3].active, false, 'Gift 4 (Принцесса Ардена) should be inactive');
+  // Verify currently active/inactive items
+  assert.notEqual(pool[3].active, false, 'Gift 4 (Принцесса Ардена) should be active');
   assert.equal(pool[6].active, false, 'Gift 7 (LEGO Spider-Man) should be inactive');
   assert.equal(pool[7].active, false, 'Gift 8 (Как приручить дракона) should be inactive');
 
@@ -506,10 +605,10 @@ test('Gifts configuration: 9 items, inactive 4, 7, 8, and Day 4 Venomized Groot'
   const state = { given: [] };
   const helpers = fn(pool, state);
 
-  // pool() should exclude inactive gifts (4, 7, 8)
+  // pool() should exclude inactive gifts (7, 8)
   const activeGifts = helpers.pool();
-  assert.equal(activeGifts.length, 6, 'There should be 6 active gifts for 6 days');
-  assert.ok(!activeGifts.some(g => ['g4', 'g7', 'g8'].includes(g.id)), 'Inactive gifts should not be in pool()');
+  assert.equal(activeGifts.length, 7, 'There should be 7 active gifts');
+  assert.ok(!activeGifts.some(g => ['g7', 'g8'].includes(g.id)), 'Inactive gifts should not be in pool()');
 
   // Days 0, 1, 2 should NOT have g6 in remainingPool
   assert.ok(!helpers.remainingPool(0).some(g => g.id === 'g6'), 'Day 1 should not have g6');
@@ -857,5 +956,65 @@ test('Full-day simulation: ?day=N parameter sets simulated day and allows full s
   simulateDay('?day=5');
   assert.equal(windowObj.__simulatedDay, 4, 'Day 5 should map to simulated index 4');
   assert.equal(state.venomControlled, true, 'Day 5 should activate symbiote control');
+});
+
+test('Skip Minigame in Test Mode: Elements, logic, and fast transition to dialogs', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const gamesCode = fs.readFileSync(path.join(__dirname, '..', 'games.js'), 'utf8');
+
+  // 1. UI Elements exist
+  assert.ok(html.includes('id="gameSkipBtn"'), 'index.html must have #gameSkipBtn in gameTopNav');
+  assert.ok(css.includes('.btn-skip-game'), 'style.css must have .btn-skip-game styles');
+  assert.ok(css.includes('.game-btn-skip'), 'style.css must have .game-btn-skip styles');
+
+  // 2. Logic exists in app.js
+  assert.ok(appCode.includes('function isTestMode()'), 'app.js must define isTestMode');
+  assert.ok(appCode.includes('function skipCurrentGame()'), 'app.js must define skipCurrentGame');
+  assert.ok(appCode.includes('window.skipCurrentGame = skipCurrentGame'), 'app.js should export skipCurrentGame on window');
+  assert.ok(appCode.includes('window.skipGame = skipCurrentGame'), 'app.js should export skipGame on window');
+
+  // 3. GameBase renders skip button in test mode
+  assert.ok(gamesCode.includes('game-btn-skip'), 'GameBase should render game-btn-skip in test mode');
+
+  // 4. Test GameBase skip button behavior
+  const ctx = loadContext();
+  const mockContainer = { innerHTML: '', appendChild() {} };
+  let winCalled = false;
+  const game = ctx.Games.create('memory', mockContainer, { isTest: true }, () => {
+    winCalled = true;
+  });
+
+  // Verify skip button element created in head
+  const head = game.root.children.find(c => c.tagName === 'header' || (c.className && c.className.includes('game-head')));
+  assert.ok(head, 'Game shell should have a header');
+  const skipBtn = head.children.find(c => c.className && c.className.includes('game-btn-skip'));
+  assert.ok(skipBtn, 'Header should contain the skip button when isTest is true');
+
+  // Click skip button
+  skipBtn.click();
+  assert.equal(game.done, true, 'Skipping should set game.done to true');
+
+  // 5. Test skipCurrentGame function logic
+  const isTestModeMatch = appCode.match(/function isTestMode\(\) \{([\s\S]*?)\n  \}/);
+  assert.ok(isTestModeMatch, 'isTestMode function definition should be matched');
+  const checkTestMode = (search, hostname) => {
+    const fn = new Function('location', 'localStorage', 'window', `
+      ${isTestModeMatch[0]}
+      return isTestMode();
+    `);
+    return fn({ search, hostname: hostname || 'example.com', protocol: 'https:' }, { getItem() { return null; } }, {});
+  };
+
+  assert.equal(checkTestMode('?test=1'), true, '?test=1 should activate test mode');
+  assert.equal(checkTestMode('?debug=1'), true, '?debug=1 should activate test mode');
+  assert.equal(checkTestMode('?skip=1'), true, '?skip=1 should activate test mode');
+  assert.equal(checkTestMode('?day=3'), true, '?day=3 should activate test mode');
+  assert.equal(checkTestMode('?preview=3'), true, '?preview=3 should activate test mode');
+  assert.equal(checkTestMode('', 'localhost'), true, 'localhost should activate test mode');
+  assert.equal(checkTestMode(''), false, 'Standard production without params should not be test mode');
+
+  game.destroy();
 });
 

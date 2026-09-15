@@ -4,6 +4,13 @@ var SITE_CONFIG = {
   title: "Подарки для тебя",
   couplePhoto: "photos/couple.webp",
   memoryCenterPhoto: "photos/center.jpg",
+  relationship: {
+    him: "Вадим",
+    her: "Сонечка",
+    shortHer: "Соня",
+    startDate: "2024-07-24",
+    constellationCode: "VS-240724"
+  },
   memoryPhotos: [
     "photos/01.jpg",
     "photos/02.jpg",
@@ -53,7 +60,6 @@ var GIFT_POOL = [
     text: "Захватывающий роман «Принцесса Ардена» от Софи Анри.",
     photo: "photos/4.webp",
     link: "",
-    active: false
   },
   {
     id: "g5",
