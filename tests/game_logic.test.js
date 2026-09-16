@@ -1027,6 +1027,21 @@ test('Day 4 Protocol MY: story, secrecy, config, and preview stage contract', ()
   assert.ok(!appCode.includes('фигурку Веномизированного Грута'), 'Day 4 dialogue must not reveal secret gift g6');
   assert.ok(!appCode.includes('var DAY4_AFTER'), 'Dead duplicate DAY4_AFTER scene must be removed');
 
+  const postWinStart = appCode.indexOf('var POSTWIN =');
+  const postWinEnd = appCode.indexOf('function controlVenom()', postWinStart);
+  const postWinCode = appCode.slice(postWinStart, postWinEnd);
+  const day4FirstLine = postWinCode.indexOf('L("nar", "Последний узел замыкается');
+  const day4PostWinStart = postWinCode.lastIndexOf('S(5)', day4FirstLine);
+  const day4PostWinEnd = postWinCode.indexOf('B("Крутить колесо")', day4FirstLine);
+  const day4PostWin = postWinCode.slice(day4PostWinStart, day4PostWinEnd);
+  const consentIndex = day4PostWin.indexOf('Теперь можно!');
+  const controlIndex = day4PostWin.indexOf('FN(controlVenom)');
+  const controlledStageIndex = day4PostWin.indexOf('S(6)', consentIndex);
+  assert.ok(day4PostWin.includes('S(5)'), 'Day 4 post-win scene must stay at infected stage before consent');
+  assert.ok(consentIndex >= 0, 'Groot must explicitly consent before Venom is controlled');
+  assert.ok(controlIndex > consentIndex, 'controlVenom() must run only after Groot consents');
+  assert.ok(controlledStageIndex > controlIndex, 'Stage 6 must appear only after controlVenom()');
+
   const day4Config = appCode.match(/\{ type: "photoPuzzle"[^\n]+\}/);
   assert.ok(day4Config, 'Day 4 photoPuzzle config must exist');
   assert.ok(day4Config[0].includes('rows: 4'), 'Day 4 must use four portrait rows');
