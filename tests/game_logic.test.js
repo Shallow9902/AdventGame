@@ -1161,6 +1161,21 @@ test('PhotoPuzzleGame Day 4: rectangular pieces, 3 sequential puzzles, choice to
   game.startPhotoPuzzle(0);
   assert.equal(game.currentPhotoIndex, 0);
 
+  // Check random scatter
+  assert.equal(game.pieceStates.length, 12);
+  const distinctX = new Set(game.pieceStates.map(p => p.x));
+  assert.ok(distinctX.size > 3, 'Pieces should spawn with random x coordinates rather than rigid 3 columns');
+
+  // Check lift pieces button exists
+  assert.ok(game.liftPiecesButton, 'liftPiecesButton must be created');
+  assert.equal(game.liftPiecesButton.textContent, '⬆ Несобранные детали наверх');
+
+  // Test lifting unassembled pieces
+  game.joinPhotoPair(0, 1, true); // Pieces 0 and 1 joined into group of 2
+  game.liftPiecesButton.click();
+  assert.equal(game.pieces[0].classList.contains('lifted'), false, 'Joined piece 0 should not be lifted');
+  assert.equal(game.pieces[2].classList.contains('lifted'), true, 'Unassembled piece 2 must be lifted to top layer');
+
   // Complete puzzle 0
   game.onPuzzleSolved();
   assert.equal(game.solvedPhotos[0], true, 'Puzzle 0 must be marked solved');
@@ -1205,10 +1220,13 @@ test('Day 4 Protocol MY: visual states, explicit finale, and reduced motion', ()
 
   assert.ok(gamesCode.includes('Продолжить к колесу ✦'), 'Final photo must wait for an explicit continue button');
   assert.ok(!gamesCode.includes('self.complete("Фотография собрана")'), 'Assembled photo must not auto-complete on a timer');
-  assert.ok(gamesCode.includes('УДЕРЖИВАТЬ: ФОТО'), 'Photo phase must expose the uncropped reference image');
-  assert.ok(gamesCode.includes('🌿 Подсказать края'), 'Groot hint control must exist');
-  assert.ok(gamesCode.includes('🖤 Соединить · 0'), 'Venom assist control must exist');
-  assert.ok(gamesCode.includes('↺ Вернуть детали'), 'Layout recovery control must exist');
+  assert.ok(gamesCode.includes('⬆ Несобранные детали наверх'), 'Control to lift unassembled pieces to top layer must exist');
+  assert.ok(!gamesCode.includes('controls.appendChild(this.grootHintButton)'), 'Old hint buttons must be removed from puzzle controls');
+  assert.ok(!gamesCode.includes('controls.appendChild(this.venomAssistButton)'), 'Old venom assist button must be removed from puzzle controls');
+  assert.ok(!gamesCode.includes('controls.appendChild(this.previewButton)'), 'Old preview button must be removed from puzzle controls');
+  assert.ok(!gamesCode.includes('controls.appendChild(this.resetLayoutButton)'), 'Old reset layout button must be removed from puzzle controls');
+  assert.ok(cssCode.includes('.protocol-lift-btn'), 'Button to lift unassembled pieces must be styled');
+  assert.ok(cssCode.includes('.photo-piece.lifted'), 'Lifted pieces must receive higher z-index in CSS');
 
   [
     '.protocol-release-board',

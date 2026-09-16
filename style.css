@@ -1011,11 +1011,11 @@ html.block-drag-active body { overflow: hidden; overscroll-behavior: none; }
 }
 .photo-workspace {
   position: relative;
-  width: min(100%, 360px);
+  width: min(100%, 520px, calc((100vh - 210px) * 3 / 4));
   aspect-ratio: 3 / 4;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: 26px;
   background:
     radial-gradient(circle at 50% 48%, rgba(243,93,145,.07), transparent 46%),
     radial-gradient(circle at 20% 15%, rgba(157,107,255,.08), transparent 30%),
@@ -1059,11 +1059,47 @@ html.block-drag-active body { overflow: hidden; overscroll-behavior: none; }
   vector-effect: non-scaling-stroke;
 }
 .photo-piece:hover { filter: brightness(1.08); }
-.photo-piece.selected { z-index: 12; filter: brightness(1.12) drop-shadow(0 0 7px rgba(243,93,145,.75)); }
-.photo-piece.dragging { z-index: 20; cursor: grabbing; transition: none; filter: brightness(1.14) drop-shadow(0 12px 10px rgba(0,0,0,.65)); }
+.photo-piece.lifted { z-index: 15; }
+.photo-piece.selected { z-index: 18; filter: brightness(1.12) drop-shadow(0 0 7px rgba(243,93,145,.75)); }
+.photo-piece.dragging { z-index: 25; cursor: grabbing; transition: none; filter: brightness(1.14) drop-shadow(0 12px 10px rgba(0,0,0,.65)); }
 .photo-piece.hinted { z-index: 16; filter: brightness(1.18) drop-shadow(0 0 12px rgba(119,200,138,.92)); }
 .photo-piece.connected svg { filter: drop-shadow(0 2px 2px rgba(0,0,0,.25)); }
 .photo-workspace.assembled .photo-piece-outline { stroke: rgba(255,255,255,.25); }
+@keyframes piecePulse {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(1.32) drop-shadow(0 0 14px rgba(243,93,145,.85)); }
+  100% { filter: brightness(1); }
+}
+.photo-piece.piece-pulse {
+  animation: piecePulse .4s ease-out;
+}
+.protocol-lift-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 24px;
+  border: 1px solid rgba(192,132,252,.35);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(168,85,247,.22), rgba(243,93,145,.18));
+  color: #f3e8ff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,.3);
+  transition: all .2s ease;
+}
+.protocol-lift-btn:hover {
+  background: linear-gradient(135deg, rgba(168,85,247,.36), rgba(243,93,145,.3));
+  border-color: rgba(192,132,252,.6);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(168,85,247,.28);
+}
+.protocol-lift-btn:active {
+  transform: translateY(0);
+}
 .photo-hint {
   min-height: 43px;
   padding: 0 18px;

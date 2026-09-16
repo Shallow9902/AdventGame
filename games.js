@@ -1203,6 +1203,11 @@ PhotoPuzzleGame.prototype.startPhotoPuzzle = function (index) {
     } else if (i === index) {
       slot.classList.add("active");
       slot.innerHTML = '<span class="slot-num">' + (i + 1) + '</span><span class="slot-title">Фото ' + (i + 1) + '</span>';
+      slot.title = "Удерживай, чтобы увидеть оригинал фото";
+      slot.addEventListener("pointerdown", function () { self.preview.classList.remove("hidden"); });
+      slot.addEventListener("pointerup", function () { self.preview.classList.add("hidden"); });
+      slot.addEventListener("pointercancel", function () { self.preview.classList.add("hidden"); });
+      slot.addEventListener("pointerleave", function () { self.preview.classList.add("hidden"); });
     } else {
       slot.classList.add("locked");
       slot.innerHTML = '<span class="slot-num">🔒</span><span class="slot-title">Фото ' + (i + 1) + ' (скрыто)</span>';
@@ -1230,26 +1235,9 @@ PhotoPuzzleGame.prototype.startPhotoPuzzle = function (index) {
   this.restoreDialogue = gameEl("div", "protocol-inline-dialogue", initialDialogue);
 
   var controls = gameEl("div", "protocol-photo-controls");
-  this.previewButton = gameEl("button", "photo-hint", "УДЕРЖИВАТЬ: ФОТО");
-  this.previewButton.addEventListener("pointerdown", function () { self.preview.classList.remove("hidden"); });
-  this.previewButton.addEventListener("pointerup", function () { self.preview.classList.add("hidden"); });
-  this.previewButton.addEventListener("pointercancel", function () { self.preview.classList.add("hidden"); });
-  this.previewButton.addEventListener("pointerleave", function () { self.preview.classList.add("hidden"); });
-
-  this.grootHintButton = gameEl("button", "photo-hint protocol-groot-hint", "🌿 Подсказать края");
-  this.grootHintButton.addEventListener("click", function () { self.showGrootHint(); });
-
-  this.venomAssistButton = gameEl("button", "photo-hint protocol-venom-assist", "🖤 Соединить · 0");
-  this.venomAssistButton.disabled = true;
-  this.venomAssistButton.addEventListener("click", function () { self.useVenomAssist(); });
-
-  this.resetLayoutButton = gameEl("button", "photo-hint protocol-reset-layout", "↺ Вернуть детали");
-  this.resetLayoutButton.addEventListener("click", function () { self.resetPhotoLayout(); });
-
-  controls.appendChild(this.previewButton);
-  controls.appendChild(this.grootHintButton);
-  controls.appendChild(this.venomAssistButton);
-  controls.appendChild(this.resetLayoutButton);
+  this.liftPiecesButton = gameEl("button", "btn protocol-lift-btn", "⬆ Несобранные детали наверх");
+  this.liftPiecesButton.addEventListener("click", function () { self.liftUnassembledPieces(); });
+  controls.appendChild(this.liftPiecesButton);
 
   this.stage.appendChild(this.slotsBar);
   this.stage.appendChild(this.restoreDialogue);
@@ -1341,15 +1329,51 @@ PhotoPuzzleGame.prototype.createPhotoPiece = function (index) {
 };
 
 PhotoPuzzleGame.prototype.scatterPhotoPieces = function () {
-  var locations = [];
-  for (var i = 0; i < this.pieces.length; i++) locations.push(i);
-  gameShuffle(locations);
+  var maxX = 98 - this.unitX;
+  var maxY = 98 - this.unitY;
   for (var index = 0; index < this.pieceStates.length; index++) {
-    var location = locations[index];
-    this.pieceStates[index].x = 5 + location % this.cols * 31;
-    this.pieceStates[index].y = 4 + Math.floor(location / this.cols) * 23;
-    this.pieceStates[index].rotation = (index % 5 - 2) * 2.5;
+    this.pieceStates[index].x = Math.round((2 + Math.random() * (maxX - 2)) * 10) / 10;
+    this.pieceStates[index].y = Math.round((2 + Math.random() * (maxY - 2)) * 10) / 10;
+    this.pieceStates[index].rotation = Math.round((Math.random() * 20 - 10) * 10) / 10;
   }
+};
+
+PhotoPuzzleGame.prototype.liftUnassembledPieces = function () {
+  var self = this;
+  var groupSizes = {};
+  this.pieceStates.forEach(function (state) {
+    groupSizes[state.group] = (groupSizes[state.group] || 0) + 1;
+  });
+
+  var maxGroupSize = 1;
+  Object.keys(groupSizes).forEach(function (grp) {
+    if (groupSizes[grp] > maxGroupSize) maxGroupSize = groupSizes[grp];
+  });
+
+  this.pieces.forEach(function (piece, index) {
+    if (!piece) return;
+    var state = self.pieceStates[index];
+    var isUnassembled = (maxGroupSize > 1) ? (groupSizes[state.group] < maxGroupSize) : true;
+    if (isUnassembled) {
+      if (self.photoBoard && self.photoBoard.appendChild) {
+        self.photoBoard.appendChild(piece);
+      }
+      if (piece.classList) {
+        piece.classList.add("lifted");
+        piece.classList.remove("piece-pulse");
+        if (piece.offsetWidth !== undefined) {
+          try { void piece.offsetWidth; } catch (e) {}
+        }
+        piece.classList.add("piece-pulse");
+      }
+    } else {
+      if (piece.classList) {
+        piece.classList.remove("lifted");
+      }
+    }
+  });
+
+  this.status.textContent = "Несобранные детали подняты на передний план!";
 };
 
 PhotoPuzzleGame.prototype.renderPhoto = function () {
