@@ -124,15 +124,12 @@ test('Story and GREET: Day 1, Day 4, Day 5, Day 6 checks', () => {
   assert.ok(greetContent.includes('заблокировано') || greetContent.includes('мощности мало') || greetContent.includes('защита'), 'Day 6 greeting should explain why wheel is locked');
 });
 
-test('After-gift buttons: no "Забрать подарок" in AFTERGIFT or DAY4_AFTER', () => {
+test('After-gift buttons: no "Забрать подарок" and no duplicate DAY4_AFTER', () => {
   const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
   const aftergiftMatch = appCode.match(/var AFTERGIFT = \[([\s\S]*?)\];/);
   assert.ok(aftergiftMatch, 'AFTERGIFT should exist');
   assert.ok(!aftergiftMatch[1].includes('Забрать подарок'), 'AFTERGIFT must not contain "Забрать подарок" button');
-
-  const day4AfterMatch = appCode.match(/var DAY4_AFTER = \[([\s\S]*?)\];/);
-  assert.ok(day4AfterMatch, 'DAY4_AFTER should exist');
-  assert.ok(!day4AfterMatch[1].includes('Забрать подарок'), 'DAY4_AFTER must not contain "Забрать подарок" button');
+  assert.ok(!appCode.includes('var DAY4_AFTER'), 'DAY4_AFTER duplicate scene must stay removed');
 });
 
 test('Stage logic: dayToStage in regular gameplay and preview mode', () => {
@@ -1016,5 +1013,156 @@ test('Skip Minigame in Test Mode: Elements, logic, and fast transition to dialog
   assert.equal(checkTestMode(''), false, 'Standard production without params should not be test mode');
 
   game.destroy();
+});
+
+test('Day 4 Protocol MY: story, secrecy, config, and preview stage contract', () => {
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+  assert.ok(appCode.includes('Грутик, смотри на меня. Ты здесь'), 'Day 4 must let Sonechka ground Groot');
+  assert.ok(appCode.includes('Веном, разожми щупальце. Сейчас'), 'Day 4 must let Sonechka set a boundary with Venom');
+  assert.ok(appCode.includes('Вы вчера сказали: «мы»'), 'Venom must connect Day 4 to the constellation from Day 3');
+  assert.ok(appCode.includes('Вернуть наше «мы»'), 'Day 4 must launch the new three-phase challenge');
+  assert.ok(appCode.includes('C("day4_after"'), 'Day 4 must have a post-gift choice');
+  assert.ok(appCode.includes('боевые конусы'), 'Post-gift scene must use the party-hat visual joke');
+  assert.ok(!appCode.includes('фигурку Веномизированного Грута'), 'Day 4 dialogue must not reveal secret gift g6');
+  assert.ok(!appCode.includes('var DAY4_AFTER'), 'Dead duplicate DAY4_AFTER scene must be removed');
+
+  const day4Config = appCode.match(/\{ type: "photoPuzzle"[^\n]+\}/);
+  assert.ok(day4Config, 'Day 4 photoPuzzle config must exist');
+  assert.ok(day4Config[0].includes('rows: 4'), 'Day 4 must use four portrait rows');
+  assert.ok(day4Config[0].includes('cols: 3'), 'Day 4 must use three portrait columns');
+  assert.ok(day4Config[0].includes('relationship: SITE_CONFIG.relationship'), 'Day 4 must receive relationship metadata');
+
+  const dayToStageMatch = appCode.match(/function dayToStage\(d\) \{([\s\S]*?)\n  \}/);
+  assert.ok(dayToStageMatch, 'dayToStage must exist');
+  const stageFor = (state) => new Function('state', 'window', 'd', `
+    ${dayToStageMatch[0]}
+    return dayToStage(d);
+  `)(state, { __previewDay: 3 }, 3);
+  assert.equal(stageFor({ venomControlled: false, finalForm: false }), 5, 'Preview Day 4 starts infected');
+  assert.equal(stageFor({ venomControlled: true, finalForm: false }), 6, 'Preview Day 4 stays controlled after victory');
+});
+
+test('PhotoPuzzleGame Protocol MY: rectangular pieces, release phase, and weave phase', () => {
+  const ctx = loadContext();
+  const proto = ctx.PhotoPuzzleGame.prototype;
+
+  assert.equal(ctx.photoPieceEdges.length, 4, 'photoPieceEdges must accept index, rows, cols, and edge storage');
+  const edges = [];
+  for (let i = 0; i < 12; i++) ctx.photoPieceEdges(i, 4, 3, edges);
+  assert.equal(edges[0].top, 0);
+  assert.equal(edges[0].left, 0);
+  assert.equal(edges[2].right, 0);
+  assert.equal(edges[11].right, 0);
+  assert.equal(edges[11].bottom, 0);
+
+  assert.equal(typeof proto.lockTendril, 'function', 'Release phase must expose lockTendril');
+  const release = Object.create(proto);
+  release.releaseTargets = [2, 0, 3, 1];
+  release.releaseLocked = [false, false, false, false];
+  release.releaseCount = 0;
+  release.stats = { textContent: '' };
+  release.status = { textContent: '' };
+  release.renderReleaseProgress = () => {
+    release.stats.textContent = `Освобождено ветвей: ${release.releaseCount}/4`;
+  };
+  let restoreStarts = 0;
+  release.startRestorePhase = () => { restoreStarts++; };
+  release.later = (fn) => fn();
+
+  assert.equal(release.lockTendril(0, 1), false, 'Wrong node must reject only the current tendril');
+  assert.equal(release.releaseCount, 0);
+  assert.equal(release.lockTendril(0, 2), true);
+  assert.equal(release.lockTendril(1, 0), true);
+  assert.equal(release.lockTendril(2, 3), true);
+  assert.equal(release.lockTendril(3, 1), true);
+  assert.equal(release.releaseCount, 4);
+  assert.equal(release.stats.textContent, 'Освобождено ветвей: 4/4');
+  assert.equal(restoreStarts, 1, 'Four released branches must start the photo phase');
+
+  assert.equal(typeof proto.advanceWeave, 'function', 'Consent phase must expose advanceWeave');
+  const weave = Object.create(proto);
+  weave.weaveOrder = ['root', 'venom', 'root', 'venom', 'root', 'venom'];
+  weave.weaveProgress = 0;
+  weave.status = { textContent: '' };
+  weave.renderWeaveProgress = () => {};
+  let finalShows = 0;
+  weave.showProtocolFinal = () => { finalShows++; };
+
+  assert.equal(weave.advanceWeave(0, 'venom'), false, 'Wrong strand must not remove completed segments');
+  assert.equal(weave.weaveProgress, 0);
+  weave.weaveOrder.forEach((type, index) => assert.equal(weave.advanceWeave(index, type), true));
+  assert.equal(weave.weaveProgress, 6);
+  assert.equal(finalShows, 1, 'The photo finale appears only after all six frame nodes');
+});
+
+test('Day 4 Protocol MY: visual states, explicit finale, and reduced motion', () => {
+  const gamesCode = fs.readFileSync(path.join(__dirname, '..', 'games.js'), 'utf8');
+  const cssCode = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+
+  assert.ok(gamesCode.includes('Продолжить к колесу ✦'), 'Final photo must wait for an explicit continue button');
+  assert.ok(!gamesCode.includes('self.complete("Фотография собрана")'), 'Assembled photo must not auto-complete on a timer');
+  assert.ok(gamesCode.includes('УДЕРЖИВАТЬ: ФОТО'), 'Photo phase must expose the uncropped reference image');
+  assert.ok(gamesCode.includes('🌿 Подсказать края'), 'Groot hint control must exist');
+  assert.ok(gamesCode.includes('🖤 Соединить · 0'), 'Venom assist control must exist');
+  assert.ok(gamesCode.includes('↺ Вернуть детали'), 'Layout recovery control must exist');
+
+  [
+    '.protocol-release-board',
+    '.protocol-tendril',
+    '.protocol-containment-node',
+    '.protocol-photo-workspace',
+    '.protocol-living-frame',
+    '.protocol-weave-node',
+    '.protocol-final-card'
+  ].forEach(selector => assert.ok(cssCode.includes(selector), `Missing Day 4 style ${selector}`));
+  assert.ok(cssCode.includes('prefers-reduced-motion: reduce'), 'Day 4 animation must respect reduced motion');
+  assert.ok(cssCode.includes('.protocol-my-arena'), 'Reduced-motion rules must target the Day 4 arena');
+  assert.ok(gamesCode.includes('protocol-my-shell'), 'Day 4 game shell must expose a scoped mobile-layout hook');
+  assert.ok(cssCode.includes('.protocol-my-shell .game-meta'), 'Day 4 mobile header must reserve a full row for its title');
+  const nodePulse = cssCode.match(/@keyframes protocolNodePulse\s*\{([\s\S]*?)\n\}/);
+  assert.ok(nodePulse, 'Containment nodes must have a pulse animation');
+  assert.ok(!nodePulse[1].includes('transform'), 'Clickable nodes must not animate geometry or become unstable during interaction');
+});
+
+test('PhotoPuzzleGame Protocol MY: hint, multi-join Venom charge, and bounds recovery', () => {
+  const ctx = loadContext();
+  const proto = ctx.PhotoPuzzleGame.prototype;
+  const game = Object.create(proto);
+  game.rows = 4;
+  game.cols = 3;
+  game.unitX = 28;
+  game.unitY = 21;
+  game.manualConnections = 0;
+  game.nextVenomChargeAt = 3;
+  game.venomCharges = 0;
+  game.dialogueSeen = {};
+  game.pieceStates = Array.from({ length: 12 }, (_, index) => ({
+    x: 5 + (index % 3) * 31,
+    y: 4 + Math.floor(index / 3) * 23,
+    group: index,
+    rotation: 0
+  }));
+  game.restoreDialogue = { textContent: '' };
+
+  assert.deepEqual(Array.from(game.findHintPair()), [0, 1], 'Hint must return a real neighboring pair in different groups');
+  game.recordPhotoConnection(true, 3);
+  assert.equal(game.manualConnections, 3, 'A drag that merges three groups must count all three manual joins');
+  assert.equal(game.venomCharges, 1, 'Every three manual joins must grant one Venom assist');
+
+  game.connectionCount = () => 6;
+  game.recordPhotoConnection(true, 2);
+  assert.equal(game.dialogueSeen[5], true, 'Crossing the fifth connection in a multi-join must still show its story beat');
+
+  game.pieceStates[0].group = 99;
+  game.pieceStates[1].group = 99;
+  game.pieceStates[0].x = -14;
+  game.pieceStates[0].y = 92;
+  game.pieceStates[1].x = 14;
+  game.pieceStates[1].y = 92;
+  game.clampPhotoGroup(99);
+  const members = game.groupMembers(99).map(index => game.pieceStates[index]);
+  assert.ok(Math.min(...members.map(state => state.x)) >= 1, 'Recovered group must stay inside the left edge');
+  assert.ok(Math.max(...members.map(state => state.y + game.unitY)) <= 99, 'Recovered group must stay inside the bottom edge');
 });
 
