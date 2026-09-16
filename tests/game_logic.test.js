@@ -22,11 +22,23 @@ function loadContext(random = Math.random) {
             has(c) { return this.classes.has(c); },
             contains(c) { return this.classes.has(c); }
           },
+          dataset: {},
           style: {},
           children: [],
+          _innerHTML: '',
+          get innerHTML() { return this._innerHTML; },
+          set innerHTML(val) {
+            this._innerHTML = val;
+            if (!val) this.children = [];
+          },
           setAttribute(k, v) { this[k] = v; },
           removeAttribute(k) { delete this[k]; },
           appendChild(child) { this.children.push(child); return child; },
+          removeChild(child) {
+            const idx = this.children.indexOf(child);
+            if (idx >= 0) this.children.splice(idx, 1);
+            return child;
+          },
           remove() { this.removed = true; },
           listeners: {},
           addEventListener(ev, fn) {
@@ -1032,7 +1044,7 @@ test('Day 4 Protocol MY: story, secrecy, config, and preview stage contract', ()
   const postWinStart = appCode.indexOf('var POSTWIN =');
   const postWinEnd = appCode.indexOf('function controlVenom()', postWinStart);
   const postWinCode = appCode.slice(postWinStart, postWinEnd);
-  const day4FirstLine = postWinCode.indexOf('L("nar", "Последний узел замыкается');
+  const day4FirstLine = postWinCode.indexOf('L("nar", "Последний кусочек');
   const day4PostWinStart = postWinCode.lastIndexOf('S(5)', day4FirstLine);
   const day4PostWinEnd = postWinCode.indexOf('B("Крутить колесо")', day4FirstLine);
   const day4PostWin = postWinCode.slice(day4PostWinStart, day4PostWinEnd);
@@ -1061,7 +1073,7 @@ test('Day 4 Protocol MY: story, secrecy, config, and preview stage contract', ()
   assert.equal(stageFor({ venomControlled: true, finalForm: false }), 6, 'Preview Day 4 stays controlled after victory');
 });
 
-test('Day 4 Protocol MY: captive sprite, readable symbiote forms, and three-photo memory', () => {
+test('Day 4: captive sprite, readable symbiote forms, and 3 sequential photo puzzles', () => {
   const ctx = loadContext();
   const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
   const cssCode = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
@@ -1088,7 +1100,7 @@ test('Day 4 Protocol MY: captive sprite, readable symbiote forms, and three-phot
     assert.ok(fs.existsSync(path.join(__dirname, '..', photo)), `Missing Day 4 photo asset: ${photo}`);
   });
 
-  const container = { innerHTML: '', appendChild() {} };
+  const container = ctx.document.createElement('div');
   const game = ctx.Games.create('photoPuzzle', container, {
     photos: ctx.SITE_CONFIG.day4Photos,
     rows: 4,
@@ -1096,63 +1108,36 @@ test('Day 4 Protocol MY: captive sprite, readable symbiote forms, and three-phot
   }, () => {});
   assert.deepEqual(Array.from(game.photos), expectedPhotos, 'Photo puzzle must retain the configured memory deck');
   assert.equal(game.image, expectedPhotos[0], 'The party portrait remains the assembled puzzle image');
-  assert.equal(game.unlockedPhotoCount(0), 1, 'Only the puzzle portrait is visible initially');
-  assert.equal(game.unlockedPhotoCount(5), 2, 'Second memory unlocks on the fifth connection');
-  assert.equal(game.unlockedPhotoCount(9), 3, 'Third memory unlocks on the ninth connection');
+  assert.equal(game.unlockedPhotoCount(), 1, 'Only the first puzzle is unlocked initially');
 
-  const galleryGame = Object.create(ctx.PhotoPuzzleGame.prototype);
-  galleryGame.photos = expectedPhotos;
-  galleryGame.memoryCards = expectedPhotos.map(photo => {
-    const button = ctx.document.createElement('button');
-    const image = {
-      removeAttribute(name) { if (name === 'src') delete this.src; }
-    };
-    return { button, image, photo };
-  });
-  galleryGame.renderMemoryGallery(0);
-  assert.equal(galleryGame.memoryCards[0].image.src, expectedPhotos[0], 'Unlocked memory loads its image');
-  assert.equal(Object.hasOwn(galleryGame.memoryCards[1].image, 'src'), false, 'Locked memory must not render a broken empty image');
-  assert.equal(Object.hasOwn(galleryGame.memoryCards[2].image, 'src'), false, 'Every locked memory must omit the src attribute');
-  assert.match(cssCode, /\.protocol-memory-card\.locked \.protocol-memory-thumb\s*\{[^}]*display:\s*none/, 'Locked cards must hide the empty image element');
+  // Start puzzle 1 (photo 0)
+  game.startPhotoPuzzle(0);
+  assert.equal(game.currentPhotoIndex, 0);
+  assert.equal(game.slotsBar.children.length, 3, 'Should show 3 photo slots');
+  assert.ok(game.slotsBar.children[0].classList.contains('active'), 'Slot 1 should be active');
+  assert.ok(game.slotsBar.children[1].classList.contains('locked'), 'Slot 2 should be locked and hidden');
+  assert.ok(game.slotsBar.children[2].classList.contains('locked'), 'Slot 3 should be locked and hidden');
 
-  const background = ctx.document.createElement('div');
-  const viewer = ctx.document.createElement('div');
-  viewer.classList.add('hidden');
-  const opener = { focused: false, focus() { this.focused = true; } };
-  const closeButton = { focused: false, focus() { this.focused = true; } };
-  ctx.document.activeElement = opener;
-  galleryGame.connectionCount = () => 0;
-  galleryGame.memoryViewer = viewer;
-  galleryGame.memoryViewerImage = { src: '', alt: '' };
-  galleryGame.memoryCloseButton = closeButton;
-  galleryGame.stage = { children: [background, viewer] };
-  galleryGame.status = { textContent: '' };
-  assert.equal(galleryGame.showMemoryPhoto(0), true, 'Unlocked memory opens in the viewer');
-  assert.equal(background.inert, true, 'Puzzle controls behind the viewer must become inert');
-  assert.equal(closeButton.focused, true, 'Viewer must receive keyboard focus immediately');
-  galleryGame.closeMemoryPhoto();
-  assert.equal(background.inert, false, 'Closing the viewer restores puzzle controls');
-  assert.equal(opener.focused, true, 'Closing the viewer returns focus to its opener');
+  // Starting puzzle 2 (photo 1) unlocks photo 2 while photo 3 remains locked
+  game.startPhotoPuzzle(1);
+  assert.equal(game.currentPhotoIndex, 1);
+  assert.equal(game.image, expectedPhotos[1]);
+  assert.equal(game.unlockedPhotoCount(), 2);
+  assert.ok(game.slotsBar.children[1].classList.contains('active'), 'Slot 2 should be active');
+  assert.ok(game.slotsBar.children[2].classList.contains('locked'), 'Slot 3 must remain locked');
 
-  opener.focused = false;
-  closeButton.focused = false;
-  assert.equal(galleryGame.showMemoryPhoto(0), true, 'Unlocked memory reopens in the viewer');
-  assert.equal(background.inert, true, 'Controls become inert on reopen');
-  let prevented = false;
-  galleryGame.handleViewerKeydown({ key: 'Escape', preventDefault() { prevented = true; } });
-  assert.equal(prevented, true, 'Escape key event is consumed');
-  assert.equal(viewer.classList.contains('hidden'), true, 'Escape key closes the memory viewer');
-  assert.equal(background.inert, false, 'Escape restores background controls');
-  assert.equal(opener.focused, true, 'Escape returns focus to opener');
+  // Starting puzzle 3 (photo 2) unlocks photo 3
+  game.startPhotoPuzzle(2);
+  assert.equal(game.currentPhotoIndex, 2);
+  assert.equal(game.image, expectedPhotos[2]);
+  assert.equal(game.unlockedPhotoCount(), 3);
+  assert.ok(game.slotsBar.children[2].classList.contains('active'), 'Slot 3 should be active');
 
-  game.finalPhoto = { src: '', alt: '' };
-  game.finalPhotoLabel = { textContent: '' };
-  game.selectFinalPhoto(2);
-  assert.equal(game.finalPhoto.src, expectedPhotos[2], 'Final living frame must browse the third memory');
-  assert.match(game.finalPhotoLabel.textContent, /3 \/ 3/, 'Final gallery announces the selected memory');
+  assert.ok(cssCode.includes('.protocol-puzzle-slots'), 'CSS must include puzzle slots style');
+  assert.ok(cssCode.includes('.puzzle-slot.locked'), 'CSS must style locked puzzle slots');
 });
 
-test('PhotoPuzzleGame Protocol MY: rectangular pieces, release phase, and weave phase', () => {
+test('PhotoPuzzleGame Day 4: rectangular pieces, 3 sequential puzzles, choice to proceed or solve next', () => {
   const ctx = loadContext();
   const proto = ctx.PhotoPuzzleGame.prototype;
 
@@ -1165,44 +1150,53 @@ test('PhotoPuzzleGame Protocol MY: rectangular pieces, release phase, and weave 
   assert.equal(edges[11].right, 0);
   assert.equal(edges[11].bottom, 0);
 
-  assert.equal(typeof proto.lockTendril, 'function', 'Release phase must expose lockTendril');
-  const release = Object.create(proto);
-  release.releaseTargets = [2, 0, 3, 1];
-  release.releaseLocked = [false, false, false, false];
-  release.releaseCount = 0;
-  release.stats = { textContent: '' };
-  release.status = { textContent: '' };
-  release.renderReleaseProgress = () => {
-    release.stats.textContent = `Освобождено ветвей: ${release.releaseCount}/4`;
-  };
-  let restoreStarts = 0;
-  release.startRestorePhase = () => { restoreStarts++; };
-  release.later = (fn) => fn();
+  const container = ctx.document.createElement('div');
+  let completedMsg = null;
+  const game = ctx.Games.create('photoPuzzle', container, {
+    photos: ctx.SITE_CONFIG.day4Photos,
+    rows: 4,
+    cols: 3
+  }, (msg) => { completedMsg = msg; });
 
-  assert.equal(release.lockTendril(0, 1), false, 'Wrong node must reject only the current tendril');
-  assert.equal(release.releaseCount, 0);
-  assert.equal(release.lockTendril(0, 2), true);
-  assert.equal(release.lockTendril(1, 0), true);
-  assert.equal(release.lockTendril(2, 3), true);
-  assert.equal(release.lockTendril(3, 1), true);
-  assert.equal(release.releaseCount, 4);
-  assert.equal(release.stats.textContent, 'Освобождено ветвей: 4/4');
-  assert.equal(restoreStarts, 1, 'Four released branches must start the photo phase');
+  game.startPhotoPuzzle(0);
+  assert.equal(game.currentPhotoIndex, 0);
 
-  assert.equal(typeof proto.advanceWeave, 'function', 'Consent phase must expose advanceWeave');
-  const weave = Object.create(proto);
-  weave.weaveOrder = ['root', 'venom', 'root', 'venom', 'root', 'venom'];
-  weave.weaveProgress = 0;
-  weave.status = { textContent: '' };
-  weave.renderWeaveProgress = () => {};
-  let finalShows = 0;
-  weave.showProtocolFinal = () => { finalShows++; };
+  // Complete puzzle 0
+  game.onPuzzleSolved();
+  assert.equal(game.solvedPhotos[0], true, 'Puzzle 0 must be marked solved');
+  assert.equal(game.stats.textContent, 'СОБРАНО: 1/3');
 
-  assert.equal(weave.advanceWeave(0, 'venom'), false, 'Wrong strand must not remove completed segments');
-  assert.equal(weave.weaveProgress, 0);
-  weave.weaveOrder.forEach((type, index) => assert.equal(weave.advanceWeave(index, type), true));
-  assert.equal(weave.weaveProgress, 6);
-  assert.equal(finalShows, 1, 'The photo finale appears only after all six frame nodes');
+  // Check completion card offers choice to continue or do next puzzle
+  const continueBtn = game.stage.querySelector('.protocol-continue');
+  const nextBtn = game.stage.querySelector('.protocol-next-puzzle');
+  assert.ok(continueBtn, 'Completion card must offer continue to wheel button');
+  assert.ok(nextBtn, 'Completion card must offer button to start puzzle 2');
+
+  // Start puzzle 1
+  game.startPhotoPuzzle(1);
+  assert.equal(game.currentPhotoIndex, 1);
+  game.onPuzzleSolved();
+  assert.equal(game.solvedPhotos[1], true, 'Puzzle 1 must be marked solved');
+  assert.equal(game.stats.textContent, 'СОБРАНО: 2/3');
+
+  const nextBtn2 = game.stage.querySelector('.protocol-next-puzzle');
+  assert.ok(nextBtn2, 'Completion card must offer button to start puzzle 3');
+
+  // Start puzzle 2
+  game.startPhotoPuzzle(2);
+  assert.equal(game.currentPhotoIndex, 2);
+  game.onPuzzleSolved();
+  assert.equal(game.solvedPhotos[2], true, 'Puzzle 2 must be marked solved');
+  assert.equal(game.stats.textContent, 'СОБРАНО: 3/3');
+
+  // After puzzle 3, no more next puzzle button, only final continue
+  const finalNextBtn = game.stage.querySelector('.protocol-next-puzzle');
+  assert.equal(finalNextBtn, null, 'No next puzzle button after puzzle 3');
+  const finalContinueBtn = game.stage.querySelector('.protocol-continue');
+  assert.ok(finalContinueBtn, 'Final completion card offers continue to wheel');
+
+  finalContinueBtn.click();
+  assert.equal(game.done, true);
 });
 
 test('Day 4 Protocol MY: visual states, explicit finale, and reduced motion', () => {

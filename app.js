@@ -83,6 +83,10 @@
         state.speechSeen = state.speechSeen.filter(function (x) { return x !== (d - 1); });
         state.won = state.won.filter(function (x) { return x !== (d - 1); });
         state.givenDay = state.givenDay.filter(function (x) { return x !== (d - 1); });
+        if (d === 4) {
+          if (Array.isArray(state.given)) state.given = state.given.filter(function (x) { return x !== "g6"; });
+          if (Array.isArray(state.givenLog)) state.givenLog = state.givenLog.filter(function (x) { return x.id !== "g6"; });
+        }
         save();
       }
     }
@@ -197,6 +201,7 @@
   function remainingPool(dayIdx) {
     var d = dayIdx != null ? dayIdx : activePlayDay();
     return pool().filter(function (g) {
+      if (d === 3 && g.id === "g6") return true;
       if (state.given.indexOf(g.id) !== -1) return false;
       if (g.specialDay != null) {
         return d >= g.specialDay;
@@ -207,6 +212,7 @@
 
   function getPendingSpinDay() {
     var cur = currentDayIdx();
+    if (state.won.indexOf(cur) !== -1 && state.givenDay.indexOf(cur) === -1) return cur;
     for (var d = 0; d <= cur; d++) {
       if (state.won.indexOf(d) !== -1 && state.givenDay.indexOf(d) === -1) return d;
     }
@@ -229,7 +235,7 @@
     { type: "memory", mark: "01", icon: "🌸", badge: "Память", desc: "12 пар наших фотографий", kicker: "ДЕНЬ 01 · ПАМЯТЬ", title: "Наши моменты", instruction: "Найди двенадцать пар фотографий.", photos: SITE_CONFIG.memoryPhotos, centerPhoto: SITE_CONFIG.memoryCenterPhoto },
     { type: "blockblast", mark: "02", icon: "🌿", badge: "Тактика", desc: "Бесконечный режим на рекорд", kicker: "ДЕНЬ 02 · ТАКТИКА", title: "Block Blast: корни", instruction: "Перетаскивай фигуры и открывай нашу фотографию.", lines: 7, photo: "photos/blockblast.jpg" },
     { type: "echo", mark: "03", icon: "✦", badge: "Головоломка", desc: "4 космических сектора", kicker: "ДЕНЬ 03 · ГОЛОВОЛОМКА", title: "Звёздные нити", instruction: "Перетаскивай звёзды так, чтобы нити не пересекались.", relationship: SITE_CONFIG.relationship },
-    { type: "photoPuzzle", mark: "04", icon: "🖤", badge: "Фотопазл", desc: "Собери нашу фотографию", kicker: "ДЕНЬ 04 · НАШЕ ФОТО", title: "Собери нашу фотографию", instruction: "Освободи веточки Грутика и восстанови вашу общую фотографию.", photo: SITE_CONFIG.couplePhoto, photos: SITE_CONFIG.day4Photos, rows: 4, cols: 3, relationship: SITE_CONFIG.relationship },
+    { type: "photoPuzzle", mark: "04", icon: "🖤", badge: "Фотопазл", desc: "Собери нашу фотографию", kicker: "ДЕНЬ 04 · НАШЕ ФОТО", title: "Собери нашу фотографию", instruction: "Собери нашу общую фотографию из кусочков пазла.", photo: SITE_CONFIG.couplePhoto, photos: SITE_CONFIG.day4Photos, rows: 4, cols: 3, relationship: SITE_CONFIG.relationship },
     { type: "circuit", mark: "05", icon: "💡", badge: "Логика", desc: "Восстановление цепи питания", kicker: "ДЕНЬ 05 · ЛОГИКА", title: "Живая схема", instruction: "Верни питание колесу." },
     { type: "finale", mark: "06", icon: "🚀", badge: "Финал", desc: "3 фазы протокола SONECHKA", kicker: "ДЕНЬ 06 · ФИНАЛ", title: "Протокол SONECHKA", instruction: "Три фазы. Один финальный запуск." }
   ];
@@ -1036,8 +1042,8 @@
     ],
     [
       S(5),
-      L("nar", "Последний узел замыкается — рамка мягко светится, соединяя зелёные веточки и чёрные нити."),
-      L("nar", "На собранной фотографии — счастливые Вадим и Сонечка, букет и праздничные колпачки. А внизу сияет памятная дата: 24.07.24."),
+      L("nar", "Последний кусочек встаёт на своё место — фотография снова целая!"),
+      L("nar", "На собранной фотографии — счастливые Вадим и Сонечка, букет и праздничные колпачки."),
       L("venom", "Красиво. Они... улыбаются."),
       L("gru", "Я есть Грутик.", "Потому что они любят друг друга."),
       L("venom", "Мы тоже хотим быть частью команды."),
@@ -1710,9 +1716,12 @@
       for (var i = 0; i < pool.length; i++) {
         if (pool[i].id === "g6") return pool[i];
       }
+      for (var k = 0; k < GIFT_POOL.length; k++) {
+        if (GIFT_POOL[k].id === "g6") return normalizeGift(GIFT_POOL[k], 5);
+      }
     }
     var regular = pool.filter(function (g) {
-      return g.id !== "g6" || dayIdx === 3;
+      return g.id !== "g6";
     });
     if (!regular.length) regular = pool;
     return regular[Math.floor(Math.random() * regular.length)];

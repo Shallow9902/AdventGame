@@ -1145,181 +1145,45 @@ function PhotoPuzzleGame(container, opts, onWin) {
   this.unitY = 21;
   this.photos = (opts.photos || (opts.photo ? [opts.photo] : [])).filter(function (photo) { return !!photo; }).slice(0, 3);
   if (!this.photos.length) this.photos.push("");
+  this.currentPhotoIndex = 0;
   this.image = this.photos[0];
-  this.relationship = opts.relationship || {};
-  this.edges = [];
-  this.pieceStates = [];
   this.clipPrefix = "photo-piece-" + (++photoClipCounter) + "-";
-  this.phase = -1;
-  this.releaseTargets = [2, 0, 3, 1];
-  this.releaseLocked = [false, false, false, false];
-  this.releaseCount = 0;
   this.manualConnections = 0;
   this.nextVenomChargeAt = 3;
   this.venomCharges = 0;
   this.dialogueSeen = {};
   this.pieces = [];
+  this.solvedPhotos = [false, false, false];
+
   this.arena.classList.add("photo-puzzle-arena", "protocol-my-arena");
-  this.phaseLabel = gameEl("div", "protocol-phase", "1. Освободить веточки");
+  this.phaseLabel = gameEl("div", "protocol-phase", "Пазл 1 из " + this.photos.length);
   this.stage = gameEl("div", "protocol-stage");
   this.arena.appendChild(this.phaseLabel);
   this.arena.appendChild(this.stage);
+
   var self = this;
-  this.stats.textContent = "3 ФАЗЫ";
-  this.gate("Начать", "Освободи веточки Грутика и собери вашу общую фотографию.", function () {
-    self.startReleasePhase();
+  this.stats.textContent = "ПАЗЛ 1 / " + this.photos.length;
+  this.gate("Начать", "Собери нашу фотографию из кусочков пазла.", function () {
+    self.startPhotoPuzzle(0);
   });
 }
 
 PhotoPuzzleGame.prototype = Object.create(GameBase.prototype);
 PhotoPuzzleGame.prototype.constructor = PhotoPuzzleGame;
 
-PhotoPuzzleGame.prototype.setProtocolPhase = function (phase, name, status) {
-  this.phase = phase;
-  this.phaseLabel.textContent = "ФАЗА " + (phase + 1) + " / 3 · " + name;
-  this.stage.innerHTML = "";
-  this.status.textContent = status;
-};
-
-PhotoPuzzleGame.prototype.startReleasePhase = function () {
-  this.setProtocolPhase(0, "Освободить веточки", "Перетащи каждое щупальце в его светящийся узел, чтобы освободить Грутика.");
-  this.releaseLocked = [false, false, false, false];
-  this.releaseCount = 0;
-  this.selectedTendril = null;
-  this.releaseButtons = [];
-  this.releaseNodes = [];
-  var board = gameEl("div", "protocol-release-board");
-  board.appendChild(gameEl("div", "protocol-release-aura"));
-  board.appendChild(gameEl("div", "protocol-groot-silhouette", "🌱"));
-  var tendrilPositions = [[18, 24], [72, 25], [25, 68], [68, 70]];
-  var nodePositions = [[12, 82], [86, 78], [10, 12], [88, 14]];
-  var self = this;
-  tendrilPositions.forEach(function (pos, index) {
-    var tendril = gameEl("button", "protocol-tendril", "●");
-    tendril.type = "button";
-    tendril.setAttribute("aria-label", "Щупальце " + (index + 1));
-    tendril.style.left = pos[0] + "%";
-    tendril.style.top = pos[1] + "%";
-    tendril.dataset.index = index;
-    tendril.addEventListener("click", function () { self.selectTendril(index); });
-    tendril.addEventListener("pointerdown", function (event) { self.startTendrilDrag(event, index); });
-    tendril.addEventListener("pointermove", function (event) { self.moveTendrilDrag(event); });
-    tendril.addEventListener("pointerup", function (event) { self.endTendrilDrag(event); });
-    tendril.addEventListener("pointercancel", function () { self.cancelTendrilDrag(); });
-    board.appendChild(tendril);
-    self.releaseButtons[index] = tendril;
-  });
-  nodePositions.forEach(function (pos, index) {
-    var node = gameEl("button", "protocol-containment-node", "✦");
-    node.type = "button";
-    node.setAttribute("aria-label", "Ограничивающий узел " + (index + 1));
-    node.style.left = pos[0] + "%";
-    node.style.top = pos[1] + "%";
-    node.dataset.index = index;
-    node.addEventListener("click", function () {
-      if (self.selectedTendril != null) self.lockTendril(self.selectedTendril, index);
-    });
-    board.appendChild(node);
-    self.releaseNodes[index] = node;
-  });
-  this.stage.appendChild(board);
-  this.releaseBoard = board;
-  this.renderReleaseProgress();
-};
-
-PhotoPuzzleGame.prototype.renderReleaseProgress = function () {
-  this.stats.textContent = "Освобождено ветвей: " + this.releaseCount + "/4";
-};
-
-PhotoPuzzleGame.prototype.selectTendril = function (index) {
-  if (this.releaseLocked[index]) return;
-  this.selectedTendril = index;
-  if (this.releaseButtons) {
-    this.releaseButtons.forEach(function (button, buttonIndex) {
-      button.classList.toggle("selected", buttonIndex === index);
-    });
-  }
-  this.status.textContent = "Щупальце выбрано! Нажми на светящийся узел.";
-};
-
-PhotoPuzzleGame.prototype.lockTendril = function (tendrilIndex, nodeIndex) {
-  if (this.releaseLocked[tendrilIndex]) return false;
-  if (this.releaseTargets[tendrilIndex] !== nodeIndex) {
-    this.status.textContent = "Не тот узел! Попробуй другой.";
-    if (this.releaseButtons && this.releaseButtons[tendrilIndex]) {
-      this.releaseButtons[tendrilIndex].classList.add("rejected");
-      this.releaseButtons[tendrilIndex].style.transform = "";
-    }
-    return false;
-  }
-  this.releaseLocked[tendrilIndex] = true;
-  this.releaseCount++;
-  this.selectedTendril = null;
-  if (this.releaseButtons && this.releaseButtons[tendrilIndex]) {
-    this.releaseButtons[tendrilIndex].classList.remove("selected", "dragging", "rejected");
-    this.releaseButtons[tendrilIndex].classList.add("locked");
-    this.releaseButtons[tendrilIndex].style.transform = "";
-  }
-  if (this.releaseNodes && this.releaseNodes[nodeIndex]) this.releaseNodes[nodeIndex].classList.add("locked");
-  this.renderReleaseProgress();
-  this.status.textContent = this.releaseCount < 4 ? "Получилось! Осталось щупалец: " + (4 - this.releaseCount) + "." : "Ура! Грутик свободен!";
-  if (this.releaseCount === 4) {
-    var self = this;
-    this.later(function () { self.startRestorePhase(); }, 650);
-  }
-  return true;
-};
-
-PhotoPuzzleGame.prototype.startTendrilDrag = function (event, index) {
-  if (this.releaseLocked[index] || (event.button != null && event.button !== 0)) return;
-  this.selectTendril(index);
-  this.tendrilDrag = { index: index, x: event.clientX, y: event.clientY };
-  var button = this.releaseButtons[index];
-  button.classList.add("dragging");
-  if (button.setPointerCapture) button.setPointerCapture(event.pointerId);
-};
-
-PhotoPuzzleGame.prototype.moveTendrilDrag = function (event) {
-  if (!this.tendrilDrag) return;
-  var button = this.releaseButtons[this.tendrilDrag.index];
-  button.style.transform = "translate(" + (event.clientX - this.tendrilDrag.x) + "px," + (event.clientY - this.tendrilDrag.y) + "px) scale(1.08)";
-  event.preventDefault();
-};
-
-PhotoPuzzleGame.prototype.endTendrilDrag = function (event) {
-  if (!this.tendrilDrag) return;
-  var drag = this.tendrilDrag;
-  this.tendrilDrag = null;
-  var nearest = -1;
-  var distance = Infinity;
-  if (this.releaseNodes) {
-    this.releaseNodes.forEach(function (node, index) {
-      var rect = node.getBoundingClientRect();
-      var dx = event.clientX - (rect.left + rect.width / 2);
-      var dy = event.clientY - (rect.top + rect.height / 2);
-      var d = Math.sqrt(dx * dx + dy * dy);
-      if (d < distance) { distance = d; nearest = index; }
-    });
-  }
-  if (distance <= 72) this.lockTendril(drag.index, nearest);
-  else if (this.releaseButtons[drag.index]) {
-    this.releaseButtons[drag.index].classList.remove("dragging");
-    this.releaseButtons[drag.index].style.transform = "";
-  }
-};
-
-PhotoPuzzleGame.prototype.cancelTendrilDrag = function () {
-  if (!this.tendrilDrag) return;
-  var index = this.tendrilDrag.index;
-  this.tendrilDrag = null;
-  if (this.releaseButtons[index]) {
-    this.releaseButtons[index].classList.remove("dragging");
-    this.releaseButtons[index].style.transform = "";
-  }
+PhotoPuzzleGame.prototype.unlockedPhotoCount = function () {
+  return this.currentPhotoIndex + 1;
 };
 
 PhotoPuzzleGame.prototype.startRestorePhase = function () {
-  this.setProtocolPhase(1, "Собрать фотографию", "Перетаскивай кусочки и соединяй края. Грутик и Веном помогут!");
+  this.startPhotoPuzzle(0);
+};
+
+PhotoPuzzleGame.prototype.startPhotoPuzzle = function (index) {
+  this.currentPhotoIndex = index;
+  this.image = this.photos[index];
+  this.phaseLabel.textContent = "Пазл " + (index + 1) + " из " + this.photos.length;
+  this.stage.innerHTML = "";
   this.edges = [];
   this.pieceStates = [];
   this.pieces = [];
@@ -1328,9 +1192,27 @@ PhotoPuzzleGame.prototype.startRestorePhase = function () {
   this.nextVenomChargeAt = 3;
   this.venomCharges = 0;
   this.dialogueSeen = {};
+
+  this.slotsBar = gameEl("div", "protocol-puzzle-slots");
+  var self = this;
+  this.photos.forEach(function (photo, i) {
+    var slot = gameEl("div", "puzzle-slot");
+    if (self.solvedPhotos[i]) {
+      slot.classList.add("completed");
+      slot.innerHTML = '<span class="slot-num">✓</span><span class="slot-title">Фото ' + (i + 1) + '</span>';
+    } else if (i === index) {
+      slot.classList.add("active");
+      slot.innerHTML = '<span class="slot-num">' + (i + 1) + '</span><span class="slot-title">Фото ' + (i + 1) + '</span>';
+    } else {
+      slot.classList.add("locked");
+      slot.innerHTML = '<span class="slot-num">🔒</span><span class="slot-title">Фото ' + (i + 1) + ' (скрыто)</span>';
+    }
+    self.slotsBar.appendChild(slot);
+  });
+
   this.photoBoard = gameEl("div", "photo-workspace protocol-photo-workspace");
   this.preview = gameEl("div", "photo-preview hidden");
-  var self = this;
+
   for (var pieceIndex = 0; pieceIndex < this.rows * this.cols; pieceIndex++) {
     photoPieceEdges(pieceIndex, this.rows, this.cols, this.edges);
     this.pieceStates.push({ x: 0, y: 0, group: pieceIndex, rotation: 0 });
@@ -1338,70 +1220,57 @@ PhotoPuzzleGame.prototype.startRestorePhase = function () {
     this.pieces[pieceIndex] = piece;
     this.photoBoard.appendChild(piece);
   }
-  this.restoreDialogue = gameEl("div", "protocol-inline-dialogue", "Грутик: «Я есть Грутик». (Давай начнём с краёв!)");
-  this.memoryGallery = gameEl("div", "protocol-memory-gallery");
-  this.memoryCards = [];
-  this.photos.forEach(function (photo, index) {
-    var card = gameEl("button", "protocol-memory-card");
-    card.type = "button";
-    card.setAttribute("aria-label", "Открыть воспоминание " + (index + 1));
-    var image = gameEl("img", "protocol-memory-thumb");
-    image.alt = "Воспоминание " + (index + 1);
-    image.loading = "lazy";
-    card.appendChild(image);
-    card.appendChild(gameEl("span", "protocol-memory-number", String(index + 1).padStart(2, "0")));
-    card.addEventListener("click", function () { self.showMemoryPhoto(index); });
-    self.memoryGallery.appendChild(card);
-    self.memoryCards.push({ button: card, image: image, photo: photo });
-  });
-  this.memoryViewer = gameEl("div", "protocol-memory-viewer hidden");
-  this.memoryViewer.setAttribute("role", "dialog");
-  this.memoryViewer.setAttribute("aria-modal", "true");
-  this.memoryViewer.setAttribute("aria-label", "Просмотр воспоминания");
-  this.memoryViewerImage = gameEl("img", "protocol-memory-viewer-image");
-  this.memoryViewerImage.alt = "Открытое воспоминание";
-  var closeMemory = gameEl("button", "protocol-memory-close", "Вернуться к пазлу ×");
-  closeMemory.type = "button";
-  closeMemory.setAttribute("aria-label", "Закрыть просмотр воспоминания");
-  this.memoryCloseButton = closeMemory;
-  closeMemory.addEventListener("click", function () { self.closeMemoryPhoto(); });
-  this.memoryViewer.addEventListener("click", function (e) {
-    if (e.target === self.memoryViewer) self.closeMemoryPhoto();
-  });
-  this.memoryViewer.appendChild(this.memoryViewerImage);
-  this.memoryViewer.appendChild(closeMemory);
+
+  var initialDialogue = "Грутик: «Я есть Грутик». (Давай начнём с краёв!)";
+  if (index === 1) {
+    initialDialogue = "Веном: «Второй пазл! Мы поможем соединить». · Грутик: «Я есть Грутик». (Только аккуратно!)";
+  } else if (index === 2) {
+    initialDialogue = "Грутик: «Я есть Грутик!» (Финальное фото! Справимся вместе!) · Веном: «Мы соберём!»";
+  }
+  this.restoreDialogue = gameEl("div", "protocol-inline-dialogue", initialDialogue);
+
   var controls = gameEl("div", "protocol-photo-controls");
   this.previewButton = gameEl("button", "photo-hint", "УДЕРЖИВАТЬ: ФОТО");
   this.previewButton.addEventListener("pointerdown", function () { self.preview.classList.remove("hidden"); });
   this.previewButton.addEventListener("pointerup", function () { self.preview.classList.add("hidden"); });
   this.previewButton.addEventListener("pointercancel", function () { self.preview.classList.add("hidden"); });
   this.previewButton.addEventListener("pointerleave", function () { self.preview.classList.add("hidden"); });
+
   this.grootHintButton = gameEl("button", "photo-hint protocol-groot-hint", "🌿 Подсказать края");
   this.grootHintButton.addEventListener("click", function () { self.showGrootHint(); });
+
   this.venomAssistButton = gameEl("button", "photo-hint protocol-venom-assist", "🖤 Соединить · 0");
   this.venomAssistButton.disabled = true;
   this.venomAssistButton.addEventListener("click", function () { self.useVenomAssist(); });
+
   this.resetLayoutButton = gameEl("button", "photo-hint protocol-reset-layout", "↺ Вернуть детали");
   this.resetLayoutButton.addEventListener("click", function () { self.resetPhotoLayout(); });
+
   controls.appendChild(this.previewButton);
   controls.appendChild(this.grootHintButton);
   controls.appendChild(this.venomAssistButton);
   controls.appendChild(this.resetLayoutButton);
+
+  this.stage.appendChild(this.slotsBar);
   this.stage.appendChild(this.restoreDialogue);
-  this.stage.appendChild(this.memoryGallery);
   this.stage.appendChild(this.photoBoard);
   this.stage.appendChild(controls);
   this.stage.appendChild(this.preview);
-  this.stage.appendChild(this.memoryViewer);
+
   this.loadPhoto();
   this.scatterPhotoPieces();
   this.renderPhoto();
+  this.status.textContent = "Соединяй подходящие кусочки пазла.";
 };
 
 PhotoPuzzleGame.prototype.loadPhoto = function () {
   var self = this;
   if (!this.image) {
     this.image = puzzleFallback();
+    return;
+  }
+  if (typeof Image === "undefined") {
+    this.renderPhoto();
     return;
   }
   var image = new Image();
@@ -1418,6 +1287,7 @@ PhotoPuzzleGame.prototype.createPhotoPiece = function (index) {
   var self = this;
   var ns = "http://www.w3.org/2000/svg";
   var button = gameEl("button", "photo-piece");
+  if (!button.dataset) button.dataset = {};
   button.dataset.piece = index;
   button.setAttribute("aria-label", "Фрагмент фотографии " + (index + 1));
   var svg = document.createElementNS(ns, "svg");
@@ -1482,87 +1352,6 @@ PhotoPuzzleGame.prototype.scatterPhotoPieces = function () {
   }
 };
 
-PhotoPuzzleGame.prototype.unlockedPhotoCount = function (connections) {
-  var count = 1;
-  if (connections >= 5) count++;
-  if (connections >= 9) count++;
-  return Math.min(this.photos.length, count);
-};
-
-PhotoPuzzleGame.prototype.renderMemoryGallery = function (connections) {
-  if (!this.memoryCards) return;
-  var unlocked = this.unlockedPhotoCount(connections);
-  this.memoryCards.forEach(function (card, index) {
-    var isUnlocked = index < unlocked;
-    card.button.classList.toggle("unlocked", isUnlocked);
-    card.button.classList.toggle("locked", !isUnlocked);
-    card.button.disabled = !isUnlocked;
-    if (isUnlocked) card.image.src = card.photo;
-    else card.image.removeAttribute("src");
-    card.button.setAttribute("aria-label", isUnlocked ? "Открыть воспоминание " + (index + 1) : "Воспоминание " + (index + 1) + " пока скрыто");
-  });
-};
-
-PhotoPuzzleGame.prototype.showMemoryPhoto = function (index) {
-  if (!this.memoryViewer || index >= this.unlockedPhotoCount(this.connectionCount())) return false;
-  this.memoryOpener = (typeof document !== "undefined" && document.activeElement) || null;
-  this.memoryViewerImage.src = this.photos[index];
-  this.memoryViewerImage.alt = "Воспоминание " + (index + 1) + " из " + this.photos.length;
-  this.memoryViewer.classList.remove("hidden");
-  if (this.stage && this.stage.children) {
-    for (var i = 0; i < this.stage.children.length; i++) {
-      var child = this.stage.children[i];
-      if (child !== this.memoryViewer) {
-        child.inert = true;
-      }
-    }
-  }
-  if (this.memoryCloseButton && typeof this.memoryCloseButton.focus === "function") {
-    this.memoryCloseButton.focus();
-  }
-  var self = this;
-  if (!this._onViewerKeydown) {
-    this._onViewerKeydown = function (e) {
-      self.handleViewerKeydown(e);
-    };
-  }
-  if (typeof window !== "undefined" && window.addEventListener) {
-    window.addEventListener("keydown", this._onViewerKeydown);
-  }
-  this.status.textContent = index === 0 ? "Ваша праздничная фотография." : "Ещё одно тёплое воспоминание открыто!";
-  return true;
-};
-
-PhotoPuzzleGame.prototype.handleViewerKeydown = function (e) {
-  if (e && (e.key === "Escape" || e.key === "Esc")) {
-    if (e.preventDefault) e.preventDefault();
-    this.closeMemoryPhoto();
-  }
-};
-
-PhotoPuzzleGame.prototype.closeMemoryPhoto = function () {
-  if (!this.memoryViewer) return false;
-  var isHidden = this.memoryViewer.classList.contains ? this.memoryViewer.classList.contains("hidden") : (this.memoryViewer.classList.has ? this.memoryViewer.classList.has("hidden") : false);
-  if (isHidden) return false;
-  this.memoryViewer.classList.add("hidden");
-  if (this.stage && this.stage.children) {
-    for (var i = 0; i < this.stage.children.length; i++) {
-      var child = this.stage.children[i];
-      if (child !== this.memoryViewer) {
-        child.inert = false;
-      }
-    }
-  }
-  if (this._onViewerKeydown && typeof window !== "undefined" && window.removeEventListener) {
-    window.removeEventListener("keydown", this._onViewerKeydown);
-  }
-  if (this.memoryOpener && typeof this.memoryOpener.focus === "function") {
-    this.memoryOpener.focus();
-  }
-  this.memoryOpener = null;
-  return true;
-};
-
 PhotoPuzzleGame.prototype.renderPhoto = function () {
   var self = this;
   this.pieces.forEach(function (piece, index) {
@@ -1579,7 +1368,6 @@ PhotoPuzzleGame.prototype.renderPhoto = function () {
   this.preview.style.backgroundImage = "url(\"" + this.image + "\")";
   var connections = this.connectionCount();
   this.stats.textContent = "Связей: " + connections + "/" + (this.rows * this.cols - 1);
-  this.renderMemoryGallery(connections);
   if (this.venomAssistButton) {
     this.venomAssistButton.textContent = "🖤 Соединить · " + this.venomCharges;
     this.venomAssistButton.disabled = this.venomCharges < 1;
@@ -1631,11 +1419,11 @@ PhotoPuzzleGame.prototype.tryPhotoSnap = function (pieceIndex) {
       var current = members[m];
       var row = Math.floor(current / this.cols);
       var col = current % this.cols;
-        var neighbors = [];
-        if (col > 0) neighbors.push(current - 1);
-        if (col < this.cols - 1) neighbors.push(current + 1);
-        if (row > 0) neighbors.push(current - this.cols);
-        if (row < this.rows - 1) neighbors.push(current + this.cols);
+      var neighbors = [];
+      if (col > 0) neighbors.push(current - 1);
+      if (col < this.cols - 1) neighbors.push(current + 1);
+      if (row > 0) neighbors.push(current - this.cols);
+      if (row < this.rows - 1) neighbors.push(current + this.cols);
       for (var n = 0; n < neighbors.length; n++) {
         var neighbor = neighbors[n];
         var otherGroup = this.pieceStates[neighbor].group;
@@ -1661,15 +1449,7 @@ PhotoPuzzleGame.prototype.tryPhotoSnap = function (pieceIndex) {
   this.clampPhotoGroup(movingGroup);
   this.renderPhoto();
   if (this.groupCount() === 1) {
-    var originX = (100 - this.unitX * this.cols) / 2;
-    var originY = (100 - this.unitY * this.rows) / 2;
-    var anchor = this.pieceStates[0];
-    this.shiftGroup(movingGroup, originX - anchor.x, originY - anchor.y);
-    this.renderPhoto();
-    this.photoBoard.classList.add("assembled");
-    this.status.textContent = "Воспоминание восстановлено. Осталось сплести рамку согласия.";
-    var self = this;
-    this.later(function () { self.startWeavePhase(); }, 650);
+    this.onPuzzleSolved();
   } else if (snapped) {
     this.status.textContent = "Края совпали. Осталось отдельных групп: " + this.groupCount() + ".";
   } else {
@@ -1690,8 +1470,8 @@ PhotoPuzzleGame.prototype.recordPhotoConnection = function (manual, joins) {
   }
   var lines = {
     1: "Веном: «Мы поможем с краями». · Грутик: «Я есть Грутик». (Аккуратно, не помни!)",
-    5: "Веном: «Можно посмотреть?» · Открылось воспоминание: Сонечка с любимой мягкой игрушкой.",
-    9: "Веном: «Красиво...» · Грутик: «Я есть Грутик!» (Это Вадим и Сонечка!)"
+    5: "Веном: «Можно посмотреть?» · Грутик: «Я есть Грутик!» (Собираем дальше!)",
+    9: "Веном: «Красиво...» · Грутик: «Я есть Грутик!» (Почти готово!)"
   };
   var latestLine = "";
   [1, 5, 9].forEach(function (threshold) {
@@ -1758,9 +1538,7 @@ PhotoPuzzleGame.prototype.joinPhotoPair = function (current, neighbor, manual) {
   this.clampPhotoGroup(otherGroup);
   this.renderPhoto();
   if (this.groupCount() === 1) {
-    var self = this;
-    this.photoBoard.classList.add("assembled");
-    this.later(function () { self.startWeavePhase(); }, 650);
+    this.onPuzzleSolved();
   }
   return true;
 };
@@ -1847,138 +1625,61 @@ PhotoPuzzleGame.prototype.endPhotoDrag = function (event) {
   this.tryPhotoSnap(drag.index);
 };
 
-PhotoPuzzleGame.prototype.startWeavePhase = function () {
-  this.closeMemoryPhoto();
-  this.setProtocolPhase(2, "Сплести рамку", "Закрепляй узлы рамки по порядку, чередуя зелёную ветвь и чёрную нить.");
-  this.weaveOrder = ["root", "venom", "root", "venom", "root", "venom"];
-  this.weaveProgress = 0;
-  this.activeStrand = "root";
-  this.weaveNodes = [];
-  this.weaveSegments = [];
-  var wrap = gameEl("div", "protocol-weave");
-  var photo = gameEl("img", "protocol-final-photo");
-  this.finalPhoto = photo;
-  this.finalPhotoIndex = 0;
-  wrap.appendChild(photo);
-  var frame = gameEl("div", "protocol-living-frame");
-  var positions = [[8, 8], [92, 8], [96, 50], [92, 92], [8, 92], [4, 50]];
-  var self = this;
-  positions.forEach(function (pos, index) {
-    var segment = gameEl("i", "protocol-weave-segment segment-" + index);
-    frame.appendChild(segment);
-    self.weaveSegments[index] = segment;
-    var node = gameEl("button", "protocol-weave-node", String(index + 1));
-    node.type = "button";
-    node.style.left = pos[0] + "%";
-    node.style.top = pos[1] + "%";
-    node.setAttribute("aria-label", "Узел рамки " + (index + 1));
-    node.addEventListener("click", function () { self.advanceWeave(index, self.activeStrand); });
-    frame.appendChild(node);
-    self.weaveNodes[index] = node;
-  });
-  this.protocolDate = gameEl("div", "protocol-date hidden", this.formatRelationshipDate());
-  frame.appendChild(this.protocolDate);
-  wrap.appendChild(frame);
-  var galleryNav = gameEl("div", "protocol-final-gallery");
-  var previousPhoto = gameEl("button", "protocol-gallery-arrow", "←");
-  previousPhoto.type = "button";
-  previousPhoto.setAttribute("aria-label", "Предыдущее воспоминание");
-  this.finalPhotoLabel = gameEl("span", "protocol-gallery-label");
-  var nextPhoto = gameEl("button", "protocol-gallery-arrow", "→");
-  nextPhoto.type = "button";
-  nextPhoto.setAttribute("aria-label", "Следующее воспоминание");
-  previousPhoto.addEventListener("click", function () { self.selectFinalPhoto(self.finalPhotoIndex - 1); });
-  nextPhoto.addEventListener("click", function () { self.selectFinalPhoto(self.finalPhotoIndex + 1); });
-  galleryNav.appendChild(previousPhoto);
-  galleryNav.appendChild(this.finalPhotoLabel);
-  galleryNav.appendChild(nextPhoto);
-  wrap.appendChild(galleryNav);
-  var tools = gameEl("div", "protocol-weave-tools");
-  this.rootTool = gameEl("button", "protocol-strand-tool active root", "🌿 Корень");
-  this.venomTool = gameEl("button", "protocol-strand-tool venom", "🖤 Нить");
-  this.rootTool.addEventListener("click", function () { self.selectStrand("root"); });
-  this.venomTool.addEventListener("click", function () { self.selectStrand("venom"); });
-  tools.appendChild(this.rootTool);
-  tools.appendChild(this.venomTool);
-  this.stage.appendChild(wrap);
-  this.stage.appendChild(tools);
-  this.weaveWrap = wrap;
-  this.selectFinalPhoto(0);
-  this.renderWeaveProgress();
-};
+PhotoPuzzleGame.prototype.onPuzzleSolved = function () {
+  var index = this.currentPhotoIndex;
+  this.solvedPhotos[index] = true;
+  var originX = (100 - this.unitX * this.cols) / 2;
+  var originY = (100 - this.unitY * this.rows) / 2;
+  var anchor = this.pieceStates[0];
+  this.shiftGroup(this.pieceStates[0].group, originX - anchor.x, originY - anchor.y);
+  this.renderPhoto();
+  this.photoBoard.classList.add("assembled");
 
-PhotoPuzzleGame.prototype.formatRelationshipDate = function () {
-  var value = this.relationship && this.relationship.startDate;
-  if (!value) return "24.07.24";
-  var parts = String(value).split("-");
-  if (parts.length !== 3) return value;
-  return parts[2] + "." + parts[1] + "." + parts[0].slice(-2);
-};
-
-PhotoPuzzleGame.prototype.selectFinalPhoto = function (index) {
-  if (!this.photos || !this.photos.length || !this.finalPhoto) return false;
-  var count = this.photos.length;
-  this.finalPhotoIndex = ((index % count) + count) % count;
-  this.finalPhoto.src = this.photos[this.finalPhotoIndex];
-  this.finalPhoto.alt = "Воспоминание Вадима и Сонечки " + (this.finalPhotoIndex + 1) + " из " + count;
-  if (this.finalPhotoLabel) this.finalPhotoLabel.textContent = "Воспоминание " + (this.finalPhotoIndex + 1) + " / " + count;
-  return true;
-};
-
-PhotoPuzzleGame.prototype.selectStrand = function (type) {
-  this.activeStrand = type;
-  if (this.rootTool) this.rootTool.classList.toggle("active", type === "root");
-  if (this.venomTool) this.venomTool.classList.toggle("active", type === "venom");
-};
-
-PhotoPuzzleGame.prototype.advanceWeave = function (nodeIndex, type) {
-  if (nodeIndex !== this.weaveProgress || this.weaveOrder[this.weaveProgress] !== type) {
-    this.status.textContent = nodeIndex !== this.weaveProgress ? "Нажимай на узлы по порядку (следующий подсвечен)." : "Нужна другая нить! Переключи на " + (type === "root" ? "чёрную нить" : "зелёную ветвь") + ".";
-    return false;
+  if (this.slotsBar && this.slotsBar.children[index]) {
+    this.slotsBar.children[index].className = "puzzle-slot completed";
+    this.slotsBar.children[index].innerHTML = '<span class="slot-num">✓</span><span class="slot-title">Фото ' + (index + 1) + '</span>';
   }
-  this.weaveProgress++;
-  this.renderWeaveProgress();
-  if (this.weaveProgress === this.weaveOrder.length) this.showProtocolFinal();
-  else this.selectStrand(this.weaveOrder[this.weaveProgress]);
-  return true;
+
+  this.showPuzzleCompletionCard(index);
 };
 
-PhotoPuzzleGame.prototype.renderWeaveProgress = function () {
-  this.stats.textContent = "Узлы рамки: " + this.weaveProgress + "/6";
-  if (!this.weaveNodes) return;
+PhotoPuzzleGame.prototype.showPuzzleCompletionCard = function (index) {
   var self = this;
-  this.weaveNodes.forEach(function (node, index) {
-    node.classList.toggle("next", index === self.weaveProgress);
-    node.classList.toggle("locked", index < self.weaveProgress);
-    if (index < self.weaveProgress) node.classList.add(self.weaveOrder[index]);
-  });
-  if (this.weaveSegments) {
-    this.weaveSegments.forEach(function (segment, index) {
-      segment.classList.toggle("locked", index < self.weaveProgress);
-      if (index < self.weaveProgress) segment.classList.add(self.weaveOrder[index]);
-    });
-  }
-};
+  var hasNext = index + 1 < this.photos.length;
 
-PhotoPuzzleGame.prototype.showProtocolFinal = function () {
-  if (this.weaveWrap) this.weaveWrap.classList.add("complete");
-  if (this.protocolDate) this.protocolDate.classList.remove("hidden");
-  if (this.rootTool) this.rootTool.disabled = true;
-  if (this.venomTool) this.venomTool.disabled = true;
-  this.stats.textContent = "ФОТО СОБРАНО";
-  this.status.textContent = "Грутик: «Я есть Грутик!» (Ура, получилось!) · Веном: «Мы отличная команда».";
   var finalCard = gameEl("div", "protocol-final-card");
-  finalCard.appendChild(gameEl("strong", null, "Вадим · Сонечка"));
-  finalCard.appendChild(gameEl("span", null, "Ваша памятная фотография снова вместе!"));
+  var titleText = hasNext ? ("Фотография " + (index + 1) + " собрана! ✨") : "Все 3 фотографии собраны! 🏆";
+  var subText = index === 0 ? "Вадим · Сонечка" : hasNext ? "Ещё одно тёплое воспоминание открыто!" : "Ваша коллекция воспоминаний полностью восстановлена!";
+
+  finalCard.appendChild(gameEl("strong", null, titleText));
+  finalCard.appendChild(gameEl("span", null, subText));
+
+  var btnWrap = gameEl("div", "protocol-card-actions");
+
   var continueBtn = gameEl("button", "btn btn-primary big protocol-continue", "Продолжить к колесу ✦");
-  var self = this;
-  continueBtn.addEventListener("click", function () { self.complete("Фотография восстановлена!"); });
-  finalCard.appendChild(continueBtn);
+  continueBtn.addEventListener("click", function () {
+    self.complete(hasNext ? "Фотография восстановлена!" : "Все фотографии собраны!");
+  });
+  btnWrap.appendChild(continueBtn);
+
+  if (hasNext) {
+    var nextIndex = index + 1;
+    var nextBtn = gameEl("button", "btn big protocol-next-puzzle", "Собрать следующий пазл (" + (nextIndex + 1) + " из " + self.photos.length + ") 🧩");
+    nextBtn.addEventListener("click", function () {
+      self.startPhotoPuzzle(nextIndex);
+    });
+    btnWrap.appendChild(nextBtn);
+  }
+
+  finalCard.appendChild(btnWrap);
   this.stage.appendChild(finalCard);
+  this.status.textContent = hasNext
+    ? "Отлично! Можно пойти дальше к колесу или собрать следующий пазл."
+    : "Потрясающе! Все 3 фотографии собраны!";
+  this.stats.textContent = "СОБРАНО: " + (index + 1) + "/" + this.photos.length;
 };
 
 PhotoPuzzleGame.prototype.destroy = function () {
-  this.closeMemoryPhoto();
   GameBase.prototype.destroy.call(this);
 };
 
