@@ -1023,7 +1023,7 @@ test('Day 4 Protocol MY: story, secrecy, config, and preview stage contract', ()
   assert.ok(appCode.includes('Грутик, смотри на меня. Ты здесь'), 'Day 4 must let Sonechka ground Groot');
   assert.ok(appCode.includes('Веном, разожми щупальце. Сейчас'), 'Day 4 must let Sonechka set a boundary with Venom');
   assert.ok(appCode.includes('Вы вчера сказали: «мы»'), 'Venom must connect Day 4 to the constellation from Day 3');
-  assert.ok(appCode.includes('Вернуть наше «мы»'), 'Day 4 must launch the new three-phase challenge');
+  assert.ok(appCode.includes('Собрать нашу фотографию'), 'Day 4 must launch the photo puzzle challenge');
   assert.ok(appCode.includes('C("day4_after"'), 'Day 4 must have a post-gift choice');
   assert.ok(appCode.includes('боевые конусы'), 'Post-gift scene must use the party-hat visual joke');
   assert.ok(!appCode.includes('фигурку Веномизированного Грута'), 'Day 4 dialogue must not reveal secret gift g6');

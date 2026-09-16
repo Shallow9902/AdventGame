@@ -1098,7 +1098,7 @@ function puzzleFallback() {
   ctx.fillStyle = "#f7edf3";
   ctx.font = "700 42px system-ui";
   ctx.textAlign = "center";
-  ctx.fillText("НАШЕ «МЫ»", 360, 430);
+  ctx.fillText("ВАДИМ И СОНЕЧКА", 360, 430);
   ctx.fillStyle = "#bca8b3";
   ctx.font = "24px system-ui";
   ctx.fillText("photos/couple.webp", 360, 480);
@@ -1160,13 +1160,13 @@ function PhotoPuzzleGame(container, opts, onWin) {
   this.dialogueSeen = {};
   this.pieces = [];
   this.arena.classList.add("photo-puzzle-arena", "protocol-my-arena");
-  this.phaseLabel = gameEl("div", "protocol-phase", "ФАЗА 1 / 3 · ОСВОБОДИТЬ");
+  this.phaseLabel = gameEl("div", "protocol-phase", "1. Освободить веточки");
   this.stage = gameEl("div", "protocol-stage");
   this.arena.appendChild(this.phaseLabel);
   this.arena.appendChild(this.stage);
   var self = this;
   this.stats.textContent = "3 ФАЗЫ";
-  this.gate("Запустить протокол", "Освободи ветви Грутика, восстанови воспоминание и помоги двум голосам удержать одну рамку — не поглощая друг друга.", function () {
+  this.gate("Начать", "Освободи веточки Грутика и собери вашу общую фотографию.", function () {
     self.startReleasePhase();
   });
 }
@@ -1182,7 +1182,7 @@ PhotoPuzzleGame.prototype.setProtocolPhase = function (phase, name, status) {
 };
 
 PhotoPuzzleGame.prototype.startReleasePhase = function () {
-  this.setProtocolPhase(0, "ОСВОБОДИТЬ", "Перетащи каждое щупальце в его светящийся ограничивающий узел. Можно также выбрать щупальце, затем узел.");
+  this.setProtocolPhase(0, "Освободить веточки", "Перетащи каждое щупальце в его светящийся узел, чтобы освободить Грутика.");
   this.releaseLocked = [false, false, false, false];
   this.releaseCount = 0;
   this.selectedTendril = null;
@@ -1239,13 +1239,13 @@ PhotoPuzzleGame.prototype.selectTendril = function (index) {
       button.classList.toggle("selected", buttonIndex === index);
     });
   }
-  this.status.textContent = "Щупальце выбрано. Укажи светящийся узел, который удержит именно его.";
+  this.status.textContent = "Щупальце выбрано! Нажми на светящийся узел.";
 };
 
 PhotoPuzzleGame.prototype.lockTendril = function (tendrilIndex, nodeIndex) {
   if (this.releaseLocked[tendrilIndex]) return false;
   if (this.releaseTargets[tendrilIndex] !== nodeIndex) {
-    this.status.textContent = "Этот узел не удерживает щупальце. Остальные ветви остаются свободными.";
+    this.status.textContent = "Не тот узел! Попробуй другой.";
     if (this.releaseButtons && this.releaseButtons[tendrilIndex]) {
       this.releaseButtons[tendrilIndex].classList.add("rejected");
       this.releaseButtons[tendrilIndex].style.transform = "";
@@ -1262,7 +1262,7 @@ PhotoPuzzleGame.prototype.lockTendril = function (tendrilIndex, nodeIndex) {
   }
   if (this.releaseNodes && this.releaseNodes[nodeIndex]) this.releaseNodes[nodeIndex].classList.add("locked");
   this.renderReleaseProgress();
-  this.status.textContent = this.releaseCount < 4 ? "Хватка ослабевает. Осталось щупалец: " + (4 - this.releaseCount) + "." : "Грутик снова управляет своими ветвями.";
+  this.status.textContent = this.releaseCount < 4 ? "Получилось! Осталось щупалец: " + (4 - this.releaseCount) + "." : "Ура! Грутик свободен!";
   if (this.releaseCount === 4) {
     var self = this;
     this.later(function () { self.startRestorePhase(); }, 650);
@@ -1319,7 +1319,7 @@ PhotoPuzzleGame.prototype.cancelTendrilDrag = function () {
 };
 
 PhotoPuzzleGame.prototype.startRestorePhase = function () {
-  this.setProtocolPhase(1, "ВСПОМНИТЬ", "Соединяй края. Грутик подскажет пару, а Веном научится помогать после трёх ручных связей.");
+  this.setProtocolPhase(1, "Собрать фотографию", "Перетаскивай кусочки и соединяй края. Грутик и Веном помогут!");
   this.edges = [];
   this.pieceStates = [];
   this.pieces = [];
@@ -1338,7 +1338,7 @@ PhotoPuzzleGame.prototype.startRestorePhase = function () {
     this.pieces[pieceIndex] = piece;
     this.photoBoard.appendChild(piece);
   }
-  this.restoreDialogue = gameEl("div", "protocol-inline-dialogue", "Грутик: «Я есть Грутик». (Сначала найдём края.)");
+  this.restoreDialogue = gameEl("div", "protocol-inline-dialogue", "Грутик: «Я есть Грутик». (Давай начнём с краёв!)");
   this.memoryGallery = gameEl("div", "protocol-memory-gallery");
   this.memoryCards = [];
   this.photos.forEach(function (photo, index) {
@@ -1529,7 +1529,7 @@ PhotoPuzzleGame.prototype.showMemoryPhoto = function (index) {
   if (typeof window !== "undefined" && window.addEventListener) {
     window.addEventListener("keydown", this._onViewerKeydown);
   }
-  this.status.textContent = index === 0 ? "Праздничный портрет, который ты восстанавливаешь." : "Ещё один настоящий момент удерживает общее «мы».";
+  this.status.textContent = index === 0 ? "Ваша праздничная фотография." : "Ещё одно тёплое воспоминание открыто!";
   return true;
 };
 
@@ -1689,9 +1689,9 @@ PhotoPuzzleGame.prototype.recordPhotoConnection = function (manual, joins) {
     }
   }
   var lines = {
-    1: "Веном: «Мы возьмём края». · Грутик: «Я есть Грутик». (Сначала спроси.)",
-    5: "Веном: «Можно посмотреть?» · Открывается тихое воспоминание: Сонечка спит рядом с мягким другом.",
-    9: "Веном: «Можно оставить это рядом?» · Вадим и Сонечка прижимаются друг к другу — близко, но по своей воле."
+    1: "Веном: «Мы поможем с краями». · Грутик: «Я есть Грутик». (Аккуратно, не помни!)",
+    5: "Веном: «Можно посмотреть?» · Открылось воспоминание: Сонечка с любимой мягкой игрушкой.",
+    9: "Веном: «Красиво...» · Грутик: «Я есть Грутик!» (Это Вадим и Сонечка!)"
   };
   var latestLine = "";
   [1, 5, 9].forEach(function (threshold) {
@@ -1772,9 +1772,9 @@ PhotoPuzzleGame.prototype.useVenomAssist = function () {
   this.venomCharges--;
   var joined = this.joinPhotoPair(pair[0], pair[1], false);
   if (joined) {
-    this.status.textContent = "Веном аккуратно стянул подходящие края — и отпустил.";
+    this.status.textContent = "Веном помог соединить кусочки пазла!";
     if (this.restoreDialogue && !this.lastConnectionHadDialogue) {
-      this.restoreDialogue.textContent = "Веном: «Так?» · Грутик: «Я есть Грутик». (Так. Не сильнее.)";
+      this.restoreDialogue.textContent = "Веном: «Мы соединили!» · Грутик: «Я есть Грутик». (Молодец, подошло!)";
     }
   }
   return joined;
@@ -1849,7 +1849,7 @@ PhotoPuzzleGame.prototype.endPhotoDrag = function (event) {
 
 PhotoPuzzleGame.prototype.startWeavePhase = function () {
   this.closeMemoryPhoto();
-  this.setProtocolPhase(2, "СОГЛАСИТЬСЯ", "Выбирай зелёный корень или чёрную нить и закрепляй узлы рамки по порядку.");
+  this.setProtocolPhase(2, "Сплести рамку", "Закрепляй узлы рамки по порядку, чередуя зелёную ветвь и чёрную нить.");
   this.weaveOrder = ["root", "venom", "root", "venom", "root", "venom"];
   this.weaveProgress = 0;
   this.activeStrand = "root";
@@ -1933,7 +1933,7 @@ PhotoPuzzleGame.prototype.selectStrand = function (type) {
 
 PhotoPuzzleGame.prototype.advanceWeave = function (nodeIndex, type) {
   if (nodeIndex !== this.weaveProgress || this.weaveOrder[this.weaveProgress] !== type) {
-    this.status.textContent = nodeIndex !== this.weaveProgress ? "Рамка плетётся по порядку: найди следующий пульсирующий узел." : "Этому узлу нужна другая нить. Готовые сегменты сохраняются.";
+    this.status.textContent = nodeIndex !== this.weaveProgress ? "Нажимай на узлы по порядку (следующий подсвечен)." : "Нужна другая нить! Переключи на " + (type === "root" ? "чёрную нить" : "зелёную ветвь") + ".";
     return false;
   }
   this.weaveProgress++;
@@ -1944,7 +1944,7 @@ PhotoPuzzleGame.prototype.advanceWeave = function (nodeIndex, type) {
 };
 
 PhotoPuzzleGame.prototype.renderWeaveProgress = function () {
-  this.stats.textContent = "Узлы согласия: " + this.weaveProgress + "/6";
+  this.stats.textContent = "Узлы рамки: " + this.weaveProgress + "/6";
   if (!this.weaveNodes) return;
   var self = this;
   this.weaveNodes.forEach(function (node, index) {
@@ -1965,14 +1965,14 @@ PhotoPuzzleGame.prototype.showProtocolFinal = function () {
   if (this.protocolDate) this.protocolDate.classList.remove("hidden");
   if (this.rootTool) this.rootTool.disabled = true;
   if (this.venomTool) this.venomTool.disabled = true;
-  this.stats.textContent = "ПРОТОКОЛ СТАБИЛЕН";
-  this.status.textContent = "Грутик: «Я есть Грутик». (Рядом — не значит одинаковые.) · Веном: «Мы поняли».";
+  this.stats.textContent = "ФОТО СОБРАНО";
+  this.status.textContent = "Грутик: «Я есть Грутик!» (Ура, получилось!) · Веном: «Мы отличная команда».";
   var finalCard = gameEl("div", "protocol-final-card");
   finalCard.appendChild(gameEl("strong", null, "Вадим · Сонечка"));
-  finalCard.appendChild(gameEl("span", null, "Две отдельные истории. Одна живая рамка."));
+  finalCard.appendChild(gameEl("span", null, "Ваша памятная фотография снова вместе!"));
   var continueBtn = gameEl("button", "btn btn-primary big protocol-continue", "Продолжить к колесу ✦");
   var self = this;
-  continueBtn.addEventListener("click", function () { self.complete("Протокол «МЫ» восстановлен"); });
+  continueBtn.addEventListener("click", function () { self.complete("Фотография восстановлена!"); });
   finalCard.appendChild(continueBtn);
   this.stage.appendChild(finalCard);
 };
