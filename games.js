@@ -1355,11 +1355,19 @@ PhotoPuzzleGame.prototype.startRestorePhase = function () {
     self.memoryCards.push({ button: card, image: image, photo: photo });
   });
   this.memoryViewer = gameEl("div", "protocol-memory-viewer hidden");
+  this.memoryViewer.setAttribute("role", "dialog");
+  this.memoryViewer.setAttribute("aria-modal", "true");
+  this.memoryViewer.setAttribute("aria-label", "Просмотр воспоминания");
   this.memoryViewerImage = gameEl("img", "protocol-memory-viewer-image");
   this.memoryViewerImage.alt = "Открытое воспоминание";
   var closeMemory = gameEl("button", "protocol-memory-close", "Вернуться к пазлу ×");
   closeMemory.type = "button";
-  closeMemory.addEventListener("click", function () { self.memoryViewer.classList.add("hidden"); });
+  closeMemory.setAttribute("aria-label", "Закрыть просмотр воспоминания");
+  this.memoryCloseButton = closeMemory;
+  closeMemory.addEventListener("click", function () { self.closeMemoryPhoto(); });
+  this.memoryViewer.addEventListener("click", function (e) {
+    if (e.target === self.memoryViewer) self.closeMemoryPhoto();
+  });
   this.memoryViewer.appendChild(this.memoryViewerImage);
   this.memoryViewer.appendChild(closeMemory);
   var controls = gameEl("div", "protocol-photo-controls");
@@ -1497,10 +1505,61 @@ PhotoPuzzleGame.prototype.renderMemoryGallery = function (connections) {
 
 PhotoPuzzleGame.prototype.showMemoryPhoto = function (index) {
   if (!this.memoryViewer || index >= this.unlockedPhotoCount(this.connectionCount())) return false;
+  this.memoryOpener = (typeof document !== "undefined" && document.activeElement) || null;
   this.memoryViewerImage.src = this.photos[index];
   this.memoryViewerImage.alt = "Воспоминание " + (index + 1) + " из " + this.photos.length;
   this.memoryViewer.classList.remove("hidden");
+  if (this.stage && this.stage.children) {
+    for (var i = 0; i < this.stage.children.length; i++) {
+      var child = this.stage.children[i];
+      if (child !== this.memoryViewer) {
+        child.inert = true;
+      }
+    }
+  }
+  if (this.memoryCloseButton && typeof this.memoryCloseButton.focus === "function") {
+    this.memoryCloseButton.focus();
+  }
+  var self = this;
+  if (!this._onViewerKeydown) {
+    this._onViewerKeydown = function (e) {
+      self.handleViewerKeydown(e);
+    };
+  }
+  if (typeof window !== "undefined" && window.addEventListener) {
+    window.addEventListener("keydown", this._onViewerKeydown);
+  }
   this.status.textContent = index === 0 ? "Праздничный портрет, который ты восстанавливаешь." : "Ещё один настоящий момент удерживает общее «мы».";
+  return true;
+};
+
+PhotoPuzzleGame.prototype.handleViewerKeydown = function (e) {
+  if (e && (e.key === "Escape" || e.key === "Esc")) {
+    if (e.preventDefault) e.preventDefault();
+    this.closeMemoryPhoto();
+  }
+};
+
+PhotoPuzzleGame.prototype.closeMemoryPhoto = function () {
+  if (!this.memoryViewer) return false;
+  var isHidden = this.memoryViewer.classList.contains ? this.memoryViewer.classList.contains("hidden") : (this.memoryViewer.classList.has ? this.memoryViewer.classList.has("hidden") : false);
+  if (isHidden) return false;
+  this.memoryViewer.classList.add("hidden");
+  if (this.stage && this.stage.children) {
+    for (var i = 0; i < this.stage.children.length; i++) {
+      var child = this.stage.children[i];
+      if (child !== this.memoryViewer) {
+        child.inert = false;
+      }
+    }
+  }
+  if (this._onViewerKeydown && typeof window !== "undefined" && window.removeEventListener) {
+    window.removeEventListener("keydown", this._onViewerKeydown);
+  }
+  if (this.memoryOpener && typeof this.memoryOpener.focus === "function") {
+    this.memoryOpener.focus();
+  }
+  this.memoryOpener = null;
   return true;
 };
 
@@ -1789,6 +1848,7 @@ PhotoPuzzleGame.prototype.endPhotoDrag = function (event) {
 };
 
 PhotoPuzzleGame.prototype.startWeavePhase = function () {
+  this.closeMemoryPhoto();
   this.setProtocolPhase(2, "СОГЛАСИТЬСЯ", "Выбирай зелёный корень или чёрную нить и закрепляй узлы рамки по порядку.");
   this.weaveOrder = ["root", "venom", "root", "venom", "root", "venom"];
   this.weaveProgress = 0;
@@ -1915,6 +1975,11 @@ PhotoPuzzleGame.prototype.showProtocolFinal = function () {
   continueBtn.addEventListener("click", function () { self.complete("Протокол «МЫ» восстановлен"); });
   finalCard.appendChild(continueBtn);
   this.stage.appendChild(finalCard);
+};
+
+PhotoPuzzleGame.prototype.destroy = function () {
+  this.closeMemoryPhoto();
+  GameBase.prototype.destroy.call(this);
 };
 
 var UNTANGLE_ROUNDS = [

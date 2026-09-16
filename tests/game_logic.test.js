@@ -19,11 +19,13 @@ function loadContext(random = Math.random) {
             add(c) { this.classes.add(c); },
             remove(c) { this.classes.delete(c); },
             toggle(c, v) { if (v === undefined) v = !this.classes.has(c); if (v) this.classes.add(c); else this.classes.delete(c); },
-            has(c) { return this.classes.has(c); }
+            has(c) { return this.classes.has(c); },
+            contains(c) { return this.classes.has(c); }
           },
           style: {},
           children: [],
           setAttribute(k, v) { this[k] = v; },
+          removeAttribute(k) { delete this[k]; },
           appendChild(child) { this.children.push(child); return child; },
           remove() { this.removed = true; },
           listeners: {},
@@ -1112,6 +1114,36 @@ test('Day 4 Protocol MY: captive sprite, readable symbiote forms, and three-phot
   assert.equal(Object.hasOwn(galleryGame.memoryCards[1].image, 'src'), false, 'Locked memory must not render a broken empty image');
   assert.equal(Object.hasOwn(galleryGame.memoryCards[2].image, 'src'), false, 'Every locked memory must omit the src attribute');
   assert.match(cssCode, /\.protocol-memory-card\.locked \.protocol-memory-thumb\s*\{[^}]*display:\s*none/, 'Locked cards must hide the empty image element');
+
+  const background = ctx.document.createElement('div');
+  const viewer = ctx.document.createElement('div');
+  viewer.classList.add('hidden');
+  const opener = { focused: false, focus() { this.focused = true; } };
+  const closeButton = { focused: false, focus() { this.focused = true; } };
+  ctx.document.activeElement = opener;
+  galleryGame.connectionCount = () => 0;
+  galleryGame.memoryViewer = viewer;
+  galleryGame.memoryViewerImage = { src: '', alt: '' };
+  galleryGame.memoryCloseButton = closeButton;
+  galleryGame.stage = { children: [background, viewer] };
+  galleryGame.status = { textContent: '' };
+  assert.equal(galleryGame.showMemoryPhoto(0), true, 'Unlocked memory opens in the viewer');
+  assert.equal(background.inert, true, 'Puzzle controls behind the viewer must become inert');
+  assert.equal(closeButton.focused, true, 'Viewer must receive keyboard focus immediately');
+  galleryGame.closeMemoryPhoto();
+  assert.equal(background.inert, false, 'Closing the viewer restores puzzle controls');
+  assert.equal(opener.focused, true, 'Closing the viewer returns focus to its opener');
+
+  opener.focused = false;
+  closeButton.focused = false;
+  assert.equal(galleryGame.showMemoryPhoto(0), true, 'Unlocked memory reopens in the viewer');
+  assert.equal(background.inert, true, 'Controls become inert on reopen');
+  let prevented = false;
+  galleryGame.handleViewerKeydown({ key: 'Escape', preventDefault() { prevented = true; } });
+  assert.equal(prevented, true, 'Escape key event is consumed');
+  assert.equal(viewer.classList.contains('hidden'), true, 'Escape key closes the memory viewer');
+  assert.equal(background.inert, false, 'Escape restores background controls');
+  assert.equal(opener.focused, true, 'Escape returns focus to opener');
 
   game.finalPhoto = { src: '', alt: '' };
   game.finalPhotoLabel = { textContent: '' };
