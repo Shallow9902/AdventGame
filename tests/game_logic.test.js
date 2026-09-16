@@ -1179,5 +1179,34 @@ test('PhotoPuzzleGame Protocol MY: hint, multi-join Venom charge, and bounds rec
   const members = game.groupMembers(99).map(index => game.pieceStates[index]);
   assert.ok(Math.min(...members.map(state => state.x)) >= 1, 'Recovered group must stay inside the left edge');
   assert.ok(Math.max(...members.map(state => state.y + game.unitY)) <= 99, 'Recovered group must stay inside the bottom edge');
+
+  const assistGame = Object.create(proto);
+  assistGame.rows = 4;
+  assistGame.cols = 3;
+  assistGame.unitX = 28;
+  assistGame.unitY = 21;
+  assistGame.manualConnections = 0;
+  assistGame.nextVenomChargeAt = 3;
+  assistGame.venomCharges = 1;
+  assistGame.dialogueSeen = {};
+  assistGame.pieceStates = Array.from({ length: 12 }, (_, index) => ({
+    x: 5 + (index % 3) * 31,
+    y: 4 + Math.floor(index / 3) * 23,
+    group: index,
+    rotation: index === 0 ? 8 : index === 1 ? -6 : 0
+  }));
+  assistGame.restoreDialogue = { textContent: '' };
+  assistGame.status = { textContent: '' };
+  assistGame.photoBoard = { classList: { add() {} } };
+  assistGame.renderPhoto = () => {};
+  assistGame.clampPhotoGroup = () => {};
+  assistGame.findHintPair = () => [0, 1];
+  assistGame.connectionCount = () => 5;
+
+  assert.equal(assistGame.useVenomAssist(), true, 'Charged Venom assist must join a valid pair');
+  assert.equal(assistGame.pieceStates[0].rotation, 0, 'Moving side of an assisted join must be aligned');
+  assert.equal(assistGame.pieceStates[1].rotation, 0, 'Stationary side of an assisted join must also be aligned');
+  assert.match(assistGame.restoreDialogue.textContent, /Так\?/, 'Threshold story beat must remain visible after Venom assist');
+  assert.doesNotMatch(assistGame.restoreDialogue.textContent, /Не сильнее/, 'Generic assist copy must not overwrite a threshold story beat');
 });
 

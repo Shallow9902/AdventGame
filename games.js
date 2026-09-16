@@ -1562,6 +1562,7 @@ PhotoPuzzleGame.prototype.tryPhotoSnap = function (pieceIndex) {
 
 PhotoPuzzleGame.prototype.recordPhotoConnection = function (manual, joins) {
   var connections = this.connectionCount();
+  this.lastConnectionHadDialogue = false;
   if (manual) {
     this.manualConnections += joins || 1;
     while (this.manualConnections >= this.nextVenomChargeAt) {
@@ -1581,7 +1582,10 @@ PhotoPuzzleGame.prototype.recordPhotoConnection = function (manual, joins) {
       latestLine = lines[threshold];
     }
   }, this);
-  if (latestLine && this.restoreDialogue) this.restoreDialogue.textContent = latestLine;
+  if (latestLine) {
+    this.lastConnectionHadDialogue = true;
+    if (this.restoreDialogue) this.restoreDialogue.textContent = latestLine;
+  }
 };
 
 PhotoPuzzleGame.prototype.findHintPair = function () {
@@ -1627,6 +1631,8 @@ PhotoPuzzleGame.prototype.joinPhotoPair = function (current, neighbor, manual) {
   this.shiftGroup(movingGroup, targetX - this.pieceStates[current].x, targetY - this.pieceStates[current].y);
   this.groupMembers(movingGroup).forEach(function (index) {
     this.pieceStates[index].group = otherGroup;
+  }, this);
+  this.groupMembers(otherGroup).forEach(function (index) {
     this.pieceStates[index].rotation = 0;
   }, this);
   this.selected = otherGroup;
@@ -1649,7 +1655,9 @@ PhotoPuzzleGame.prototype.useVenomAssist = function () {
   var joined = this.joinPhotoPair(pair[0], pair[1], false);
   if (joined) {
     this.status.textContent = "Веном аккуратно стянул подходящие края — и отпустил.";
-    if (this.restoreDialogue) this.restoreDialogue.textContent = "Веном: «Так?» · Грутик: «Я есть Грутик». (Так. Не сильнее.)";
+    if (this.restoreDialogue && !this.lastConnectionHadDialogue) {
+      this.restoreDialogue.textContent = "Веном: «Так?» · Грутик: «Я есть Грутик». (Так. Не сильнее.)";
+    }
   }
   return joined;
 };
