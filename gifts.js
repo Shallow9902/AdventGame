@@ -3,6 +3,11 @@ var SITE_CONFIG = {
   startDate: "2026-09-14",
   title: "Подарки для тебя",
   couplePhoto: "photos/couple.webp",
+  day4Photos: [
+    "photos/couple.webp",
+    "photos/photo_2026-02-27_21-48-28.jpg",
+    "photos/photo_2026-03-08_00-22-53.jpg"
+  ],
   memoryCenterPhoto: "photos/center.jpg",
   relationship: {
     him: "Вадим",

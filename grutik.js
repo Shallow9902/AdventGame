@@ -55,11 +55,12 @@ var GRUTIK_STAGES = {
   "1": { growth: .43, seed: 0, leaves: 3, venom: 0, chaos: 0, heroic: 0 },
   "2": { growth: .58, seed: 0, leaves: 5, venom: 0, chaos: 0, heroic: 0 },
   "3": { growth: .78, seed: 0, leaves: 8, venom: 0, chaos: 0, heroic: 0 },
-  "4": { growth: .9, seed: 0, leaves: 9, venom: 0, chaos: 0, heroic: 0 },
-  "5": { growth: .98, seed: 0, leaves: 7, venom: .68, chaos: 1, heroic: 0 },
-  "6": { growth: 1, seed: 0, leaves: 8, venom: .52, chaos: .35, heroic: .18 },
-  "7": { growth: 1.08, seed: 0, leaves: 10, venom: .61, chaos: .18, heroic: .48 },
-  "8": { growth: 1.15, seed: 0, leaves: 13, venom: .7, chaos: 0, heroic: 1 }
+  "4": { growth: .9, seed: 0, leaves: 9, venom: 0, chaos: 0, heroic: 0, venomMode: "none" },
+  "4.5": { growth: .9, seed: 0, leaves: 9, venom: .24, chaos: 1, heroic: 0, venomMode: "captive" },
+  "5": { growth: .98, seed: 0, leaves: 8, venom: .68, chaos: 1, heroic: 0, venomMode: "conflict" },
+  "6": { growth: 1, seed: 0, leaves: 9, venom: .52, chaos: .28, heroic: .18, venomMode: "alliance" },
+  "7": { growth: 1.08, seed: 0, leaves: 10, venom: .61, chaos: .14, heroic: .48, venomMode: "alliance" },
+  "8": { growth: 1.15, seed: 0, leaves: 13, venom: .7, chaos: 0, heroic: 1, venomMode: "heroic" }
 };
 
 function getGrutikStage(stage) {
@@ -195,8 +196,8 @@ function drawRoots(ctx, x, ground, scale, pot, venom) {
 }
 
 function drawRearTendrils(ctx, x, y, scale, traits, time) {
-  if (!traits.venom) return;
-  var count = traits.chaos > .5 ? 4 : traits.heroic ? 3 : 2;
+  if (!traits.venom || traits.venomMode === "captive") return;
+  var count = traits.venomMode === "conflict" ? 4 : traits.heroic ? 3 : 2;
   ctx.lineCap = "round";
   for (var i = 0; i < count; i++) {
     var side = i % 2 ? 1 : -1;
@@ -208,6 +209,45 @@ function drawRearTendrils(ctx, x, y, scale, traits, time) {
     ctx.bezierCurveTo(x + side * (54 + i * 8) * scale, y + sway, x + side * (72 + i * 11) * scale, y - (45 + i * 7) * scale, x + side * (55 + i * 17) * scale, y - (80 + i * 6) * scale);
     ctx.stroke();
   }
+}
+
+function drawCaptiveRig(ctx, x, headY, ground, scale, time, foreground) {
+  var pulse = Math.sin(time * .003) * 4 * scale;
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = foreground ? "#111720" : "#05070b";
+  ctx.lineWidth = (foreground ? 9 : 14) * scale;
+
+  if (!foreground) {
+    var anchors = [
+      [x - 118 * scale, -12, x - 86 * scale, headY + 36 * scale],
+      [x + 118 * scale, -12, x + 86 * scale, headY + 48 * scale],
+      [x - 42 * scale, -20, x - 23 * scale, ground - 26 * scale],
+      [x + 45 * scale, -20, x + 24 * scale, ground - 18 * scale]
+    ];
+    anchors.forEach(function (line, index) {
+      ctx.beginPath();
+      ctx.moveTo(line[0], line[1]);
+      ctx.bezierCurveTo(line[0] + (index % 2 ? -18 : 18) * scale, headY - 22 * scale, line[2] + pulse * (index % 2 ? -1 : 1), line[3] - 30 * scale, line[2], line[3]);
+      ctx.stroke();
+    });
+  } else {
+    ctx.strokeStyle = "rgba(28, 35, 46, .98)";
+    ctx.lineWidth = 8 * scale;
+    [headY + 43 * scale, ground - 39 * scale].forEach(function (y, index) {
+      ctx.beginPath();
+      ctx.ellipse(x, y, (58 - index * 12) * scale, (13 - index * 2) * scale, -.08, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+    ctx.strokeStyle = "rgba(175, 191, 210, .28)";
+    ctx.lineWidth = 2 * scale;
+    ctx.beginPath();
+    ctx.moveTo(x - 43 * scale, headY + 38 * scale);
+    ctx.quadraticCurveTo(x, headY + 55 * scale, x + 47 * scale, headY + 42 * scale);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function woodGradient(ctx, x, top, bottom) {
@@ -436,76 +476,96 @@ function drawLeafClusters(ctx, x, headY, scale, count, traits, time) {
 }
 
 function drawVenom(ctx, x, ground, scale, body, headY, traits, time) {
-  if (!traits.venom) return;
-  var coverage = traits.venom;
-  var black = ctx.createLinearGradient(x, headY - 50 * scale, x + 75 * scale, ground);
-  black.addColorStop(0, "#252c36");
-  black.addColorStop(.35, "#090c11");
-  black.addColorStop(1, "#151a22");
+  if (!traits.venom || traits.venomMode === "captive") return;
+  var conflict = traits.venomMode === "conflict";
+  var heroic = traits.venomMode === "heroic";
+  var headX = x + (conflict ? 77 : 72) * scale;
+  var venomHeadY = headY + (conflict ? 8 : 13) * scale;
+  var headW = (conflict ? 37 : 31) * scale;
+  var headH = (conflict ? 43 : 36) * scale;
+  var black = ctx.createLinearGradient(x + 4 * scale, body.top, headX + headW, ground);
+  black.addColorStop(0, conflict ? "#232b36" : "#1d2930");
+  black.addColorStop(.48, "#070a0f");
+  black.addColorStop(1, "#151c23");
 
   ctx.save();
-  ctx.globalAlpha = Math.min(1, coverage * 1.35);
+  ctx.globalAlpha = .9 + traits.venom * .1;
+
+  // A shoulder mantle keeps Groot's face and wooden silhouette readable.
   ctx.fillStyle = black;
   ctx.beginPath();
-  ctx.moveTo(x + 3 * scale, ground - 5 * scale);
-  ctx.bezierCurveTo(x + 28 * scale, ground - 36 * scale, x + 15 * scale, body.top + 56 * scale, x + 7 * scale, body.top + 8 * scale);
-  ctx.bezierCurveTo(x + 38 * scale, body.top - 10 * scale, x + 53 * scale, headY - 42 * scale, x + 50 * scale, headY - 9 * scale);
-  ctx.bezierCurveTo(x + 64 * scale, headY + 26 * scale, x + 35 * scale, headY + 45 * scale, x + 28 * scale, body.top + 42 * scale);
-  ctx.bezierCurveTo(x + 62 * scale, body.top + 66 * scale, x + 44 * scale, ground - 24 * scale, x + 34 * scale, ground);
+  ctx.moveTo(x + 10 * scale, body.top + 12 * scale);
+  ctx.bezierCurveTo(x + 37 * scale, body.top + 6 * scale, x + 49 * scale, body.top + 34 * scale, x + 43 * scale, body.top + 58 * scale);
+  ctx.bezierCurveTo(x + 52 * scale, ground - 42 * scale, x + 42 * scale, ground - 14 * scale, x + 28 * scale, ground - 4 * scale);
+  ctx.lineTo(x + 10 * scale, ground - 8 * scale);
+  ctx.bezierCurveTo(x + 24 * scale, ground - 49 * scale, x + 14 * scale, body.top + 57 * scale, x + 10 * scale, body.top + 12 * scale);
   ctx.closePath();
   ctx.fill();
 
-  ctx.strokeStyle = "rgba(151,172,196,.28)";
-  ctx.lineWidth = 3 * scale;
+  // The neck arches behind Groot rather than replacing half of his face.
+  ctx.strokeStyle = "#080c11";
+  ctx.lineWidth = (conflict ? 18 : 15) * scale;
   ctx.lineCap = "round";
-  for (var i = 0; i < 4; i++) {
-    ctx.beginPath();
-    ctx.moveTo(x + (17 + i * 5) * scale, ground - (13 + i * 19) * scale);
-    ctx.quadraticCurveTo(x + (36 + i * 3) * scale, ground - (30 + i * 20) * scale, x + (23 + i * 7) * scale, ground - (49 + i * 21) * scale);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = "#f4f6f8";
   ctx.beginPath();
-  ctx.moveTo(x + 9 * scale, headY - 11 * scale);
-  ctx.bezierCurveTo(x + 23 * scale, headY - 20 * scale, x + 47 * scale, headY - 17 * scale, x + 51 * scale, headY - 7 * scale);
-  ctx.bezierCurveTo(x + 37 * scale, headY - 10 * scale, x + 21 * scale, headY + 1 * scale, x + 9 * scale, headY - 11 * scale);
+  ctx.moveTo(x + 31 * scale, body.top + 34 * scale);
+  ctx.quadraticCurveTo(x + 54 * scale, headY + 28 * scale, headX - 8 * scale, venomHeadY + 18 * scale);
+  ctx.stroke();
+
+  ctx.fillStyle = black;
+  ctx.beginPath();
+  ctx.moveTo(headX - headW * .78, venomHeadY + headH * .55);
+  ctx.bezierCurveTo(headX - headW * 1.1, venomHeadY - headH * .15, headX - headW * .58, venomHeadY - headH * .96, headX, venomHeadY - headH);
+  ctx.bezierCurveTo(headX + headW * .75, venomHeadY - headH * .8, headX + headW * 1.04, venomHeadY + headH * .08, headX + headW * .72, venomHeadY + headH * .62);
+  ctx.quadraticCurveTo(headX, venomHeadY + headH * .95, headX - headW * .78, venomHeadY + headH * .55);
+  ctx.closePath();
   ctx.fill();
 
-  if (traits.chaos > .55) {
-    ctx.fillStyle = "#05070a";
+  // Two eyes belong to Venom; Groot keeps both of his own.
+  ctx.fillStyle = "#f7f8fa";
+  [-1, 1].forEach(function (side) {
     ctx.beginPath();
-    ctx.ellipse(x + 32 * scale, headY + 23 * scale, 25 * scale, 15 * scale, .1, 0, Math.PI * 2);
+    ctx.moveTo(headX + side * 5 * scale, venomHeadY - 10 * scale);
+    ctx.quadraticCurveTo(headX + side * 24 * scale, venomHeadY - (conflict ? 20 : 16) * scale, headX + side * 27 * scale, venomHeadY - 2 * scale);
+    ctx.quadraticCurveTo(headX + side * 18 * scale, venomHeadY + 1 * scale, headX + side * 5 * scale, venomHeadY - 10 * scale);
     ctx.fill();
-    ctx.fillStyle = "#e7e8e9";
-    for (var tooth = 0; tooth < 5; tooth++) {
+  });
+
+  if (conflict) {
+    ctx.fillStyle = "#020305";
+    ctx.beginPath();
+    ctx.ellipse(headX, venomHeadY + 14 * scale, 24 * scale, 13 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f1f2f3";
+    for (var tooth = -2; tooth <= 2; tooth++) {
       ctx.beginPath();
-      ctx.moveTo(x + (13 + tooth * 9) * scale, headY + 16 * scale);
-      ctx.lineTo(x + (17 + tooth * 9) * scale, headY + 27 * scale);
-      ctx.lineTo(x + (21 + tooth * 9) * scale, headY + 16 * scale);
+      ctx.moveTo(headX + (tooth * 8 - 4) * scale, venomHeadY + 7 * scale);
+      ctx.lineTo(headX + tooth * 8 * scale, venomHeadY + 18 * scale);
+      ctx.lineTo(headX + (tooth * 8 + 4) * scale, venomHeadY + 7 * scale);
       ctx.fill();
     }
-    ctx.strokeStyle = "#a3294b";
-    ctx.lineWidth = 7 * scale;
+    ctx.strokeStyle = "#b72f58";
+    ctx.lineWidth = 5 * scale;
     ctx.beginPath();
-    ctx.moveTo(x + 37 * scale, headY + 28 * scale);
-    ctx.quadraticCurveTo(x + 57 * scale, headY + 49 * scale, x + 45 * scale, headY + 68 * scale);
+    ctx.moveTo(headX + 4 * scale, venomHeadY + 20 * scale);
+    ctx.quadraticCurveTo(headX + 25 * scale, venomHeadY + 32 * scale, headX + 17 * scale, venomHeadY + 46 * scale);
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = "rgba(236, 244, 247, .82)";
+    ctx.lineWidth = 2.5 * scale;
+    ctx.beginPath();
+    ctx.arc(headX, venomHeadY + 10 * scale, 12 * scale, .18 * Math.PI, .82 * Math.PI);
     ctx.stroke();
   }
 
-  if (traits.heroic) {
-    ctx.strokeStyle = "rgba(224,91,154,.72)";
-    ctx.shadowColor = "rgba(224,91,154,.5)";
-    ctx.shadowBlur = 10 * scale;
-    ctx.lineWidth = 2.2 * scale;
-    ctx.beginPath();
-    ctx.moveTo(x + 6 * scale, body.top + 38 * scale);
-    ctx.lineTo(x + 25 * scale, body.top + 57 * scale);
-    ctx.lineTo(x + 13 * scale, body.top + 79 * scale);
-    ctx.lineTo(x + 34 * scale, body.top + 101 * scale);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
+  ctx.strokeStyle = heroic ? "rgba(224,91,154,.78)" : "rgba(113, 177, 143, .52)";
+  ctx.shadowColor = heroic ? "rgba(224,91,154,.5)" : "rgba(113, 177, 143, .35)";
+  ctx.shadowBlur = heroic ? 10 * scale : 5 * scale;
+  ctx.lineWidth = 2.2 * scale;
+  ctx.beginPath();
+  ctx.moveTo(x + 14 * scale, body.top + 38 * scale);
+  ctx.quadraticCurveTo(x + 34 * scale, body.top + 62 * scale, x + 20 * scale, body.top + 86 * scale);
+  ctx.quadraticCurveTo(x + 35 * scale, body.top + 103 * scale, x + 28 * scale, ground - 12 * scale);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -566,8 +626,12 @@ function drawGrutik(canvas, stage, pose) {
     var x = pot.x + pot.w * .5;
     var ground = pot.y + pot.h * .13;
     var headY;
+    var captureLift = traits.venomMode === "captive" ? -38 * scale : 0;
+    if (traits.venomMode === "captive") {
+      drawCaptiveRig(ctx, x, ground - 154 * scale + captureLift, ground + captureLift, scale, now, false);
+    }
     ctx.save();
-    ctx.translate(0, motion.y || 0);
+    ctx.translate(0, (motion.y || 0) + captureLift);
     if (mature) {
       headY = ground - 154 * scale;
       drawRearTendrils(ctx, x, headY + 30 * scale, scale, traits, now);
@@ -585,6 +649,9 @@ function drawGrutik(canvas, stage, pose) {
       drawSleepParticles(ctx, x, headY, mature ? scale : sprout.leafScale, now);
     }
     ctx.restore();
+    if (traits.venomMode === "captive") {
+      drawCaptiveRig(ctx, x, headY + captureLift, ground + captureLift, scale, now, true);
+    }
     canvas.__gru = { x: x, y: ground, s: scale, mode: traits.venom, happy: traits.heroic, baby: !mature, W: W, H: H };
   } else {
     canvas.__gru = { x: pot.x + pot.w * .5, y: pot.y, s: 0, mode: 0, happy: false, baby: true, W: W, H: H };

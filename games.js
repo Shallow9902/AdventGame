@@ -1143,7 +1143,9 @@ function PhotoPuzzleGame(container, opts, onWin) {
   this.drag = null;
   this.unitX = 28;
   this.unitY = 21;
-  this.image = opts.photo || "";
+  this.photos = (opts.photos || (opts.photo ? [opts.photo] : [])).filter(function (photo) { return !!photo; }).slice(0, 3);
+  if (!this.photos.length) this.photos.push("");
+  this.image = this.photos[0];
   this.relationship = opts.relationship || {};
   this.edges = [];
   this.pieceStates = [];
@@ -1337,6 +1339,29 @@ PhotoPuzzleGame.prototype.startRestorePhase = function () {
     this.photoBoard.appendChild(piece);
   }
   this.restoreDialogue = gameEl("div", "protocol-inline-dialogue", "Грутик: «Я есть Грутик». (Сначала найдём края.)");
+  this.memoryGallery = gameEl("div", "protocol-memory-gallery");
+  this.memoryCards = [];
+  this.photos.forEach(function (photo, index) {
+    var card = gameEl("button", "protocol-memory-card");
+    card.type = "button";
+    card.setAttribute("aria-label", "Открыть воспоминание " + (index + 1));
+    var image = gameEl("img", "protocol-memory-thumb");
+    image.alt = "Воспоминание " + (index + 1);
+    image.loading = "lazy";
+    card.appendChild(image);
+    card.appendChild(gameEl("span", "protocol-memory-number", String(index + 1).padStart(2, "0")));
+    card.addEventListener("click", function () { self.showMemoryPhoto(index); });
+    self.memoryGallery.appendChild(card);
+    self.memoryCards.push({ button: card, image: image, photo: photo });
+  });
+  this.memoryViewer = gameEl("div", "protocol-memory-viewer hidden");
+  this.memoryViewerImage = gameEl("img", "protocol-memory-viewer-image");
+  this.memoryViewerImage.alt = "Открытое воспоминание";
+  var closeMemory = gameEl("button", "protocol-memory-close", "Вернуться к пазлу ×");
+  closeMemory.type = "button";
+  closeMemory.addEventListener("click", function () { self.memoryViewer.classList.add("hidden"); });
+  this.memoryViewer.appendChild(this.memoryViewerImage);
+  this.memoryViewer.appendChild(closeMemory);
   var controls = gameEl("div", "protocol-photo-controls");
   this.previewButton = gameEl("button", "photo-hint", "УДЕРЖИВАТЬ: ФОТО");
   this.previewButton.addEventListener("pointerdown", function () { self.preview.classList.remove("hidden"); });
@@ -1355,9 +1380,11 @@ PhotoPuzzleGame.prototype.startRestorePhase = function () {
   controls.appendChild(this.venomAssistButton);
   controls.appendChild(this.resetLayoutButton);
   this.stage.appendChild(this.restoreDialogue);
+  this.stage.appendChild(this.memoryGallery);
   this.stage.appendChild(this.photoBoard);
   this.stage.appendChild(controls);
   this.stage.appendChild(this.preview);
+  this.stage.appendChild(this.memoryViewer);
   this.loadPhoto();
   this.scatterPhotoPieces();
   this.renderPhoto();
@@ -1447,6 +1474,36 @@ PhotoPuzzleGame.prototype.scatterPhotoPieces = function () {
   }
 };
 
+PhotoPuzzleGame.prototype.unlockedPhotoCount = function (connections) {
+  var count = 1;
+  if (connections >= 5) count++;
+  if (connections >= 9) count++;
+  return Math.min(this.photos.length, count);
+};
+
+PhotoPuzzleGame.prototype.renderMemoryGallery = function (connections) {
+  if (!this.memoryCards) return;
+  var unlocked = this.unlockedPhotoCount(connections);
+  this.memoryCards.forEach(function (card, index) {
+    var isUnlocked = index < unlocked;
+    card.button.classList.toggle("unlocked", isUnlocked);
+    card.button.classList.toggle("locked", !isUnlocked);
+    card.button.disabled = !isUnlocked;
+    if (isUnlocked) card.image.src = card.photo;
+    else card.image.removeAttribute("src");
+    card.button.setAttribute("aria-label", isUnlocked ? "Открыть воспоминание " + (index + 1) : "Воспоминание " + (index + 1) + " пока скрыто");
+  });
+};
+
+PhotoPuzzleGame.prototype.showMemoryPhoto = function (index) {
+  if (!this.memoryViewer || index >= this.unlockedPhotoCount(this.connectionCount())) return false;
+  this.memoryViewerImage.src = this.photos[index];
+  this.memoryViewerImage.alt = "Воспоминание " + (index + 1) + " из " + this.photos.length;
+  this.memoryViewer.classList.remove("hidden");
+  this.status.textContent = index === 0 ? "Праздничный портрет, который ты восстанавливаешь." : "Ещё один настоящий момент удерживает общее «мы».";
+  return true;
+};
+
 PhotoPuzzleGame.prototype.renderPhoto = function () {
   var self = this;
   this.pieces.forEach(function (piece, index) {
@@ -1461,7 +1518,9 @@ PhotoPuzzleGame.prototype.renderPhoto = function () {
     piece.classList.toggle("connected", self.groupMembers(state.group).length > 1);
   });
   this.preview.style.backgroundImage = "url(\"" + this.image + "\")";
-  this.stats.textContent = "Связей: " + this.connectionCount() + "/" + (this.rows * this.cols - 1);
+  var connections = this.connectionCount();
+  this.stats.textContent = "Связей: " + connections + "/" + (this.rows * this.cols - 1);
+  this.renderMemoryGallery(connections);
   if (this.venomAssistButton) {
     this.venomAssistButton.textContent = "🖤 Соединить · " + this.venomCharges;
     this.venomAssistButton.disabled = this.venomCharges < 1;
@@ -1571,9 +1630,9 @@ PhotoPuzzleGame.prototype.recordPhotoConnection = function (manual, joins) {
     }
   }
   var lines = {
-    1: "Веном: «Мы тоже хотим помочь». · Грутик: «Тогда придержи. Не тяни».",
-    5: "Веном: «Так?» · Грутик: «Я есть Грутик». (Да. Именно так.)",
-    9: "Веном: «Они стоят рядом. Но не сливаются». · Грутик: «И всё равно вместе»."
+    1: "Веном: «Мы возьмём края». · Грутик: «Я есть Грутик». (Сначала спроси.)",
+    5: "Веном: «Можно посмотреть?» · Открывается тихое воспоминание: Сонечка спит рядом с мягким другом.",
+    9: "Веном: «Можно оставить это рядом?» · Вадим и Сонечка прижимаются друг к другу — близко, но по своей воле."
   };
   var latestLine = "";
   [1, 5, 9].forEach(function (threshold) {
@@ -1738,8 +1797,8 @@ PhotoPuzzleGame.prototype.startWeavePhase = function () {
   this.weaveSegments = [];
   var wrap = gameEl("div", "protocol-weave");
   var photo = gameEl("img", "protocol-final-photo");
-  photo.src = this.image;
-  photo.alt = "Фотография Вадима и Сонечки";
+  this.finalPhoto = photo;
+  this.finalPhotoIndex = 0;
   wrap.appendChild(photo);
   var frame = gameEl("div", "protocol-living-frame");
   var positions = [[8, 8], [92, 8], [96, 50], [92, 92], [8, 92], [4, 50]];
@@ -1760,6 +1819,20 @@ PhotoPuzzleGame.prototype.startWeavePhase = function () {
   this.protocolDate = gameEl("div", "protocol-date hidden", this.formatRelationshipDate());
   frame.appendChild(this.protocolDate);
   wrap.appendChild(frame);
+  var galleryNav = gameEl("div", "protocol-final-gallery");
+  var previousPhoto = gameEl("button", "protocol-gallery-arrow", "←");
+  previousPhoto.type = "button";
+  previousPhoto.setAttribute("aria-label", "Предыдущее воспоминание");
+  this.finalPhotoLabel = gameEl("span", "protocol-gallery-label");
+  var nextPhoto = gameEl("button", "protocol-gallery-arrow", "→");
+  nextPhoto.type = "button";
+  nextPhoto.setAttribute("aria-label", "Следующее воспоминание");
+  previousPhoto.addEventListener("click", function () { self.selectFinalPhoto(self.finalPhotoIndex - 1); });
+  nextPhoto.addEventListener("click", function () { self.selectFinalPhoto(self.finalPhotoIndex + 1); });
+  galleryNav.appendChild(previousPhoto);
+  galleryNav.appendChild(this.finalPhotoLabel);
+  galleryNav.appendChild(nextPhoto);
+  wrap.appendChild(galleryNav);
   var tools = gameEl("div", "protocol-weave-tools");
   this.rootTool = gameEl("button", "protocol-strand-tool active root", "🌿 Корень");
   this.venomTool = gameEl("button", "protocol-strand-tool venom", "🖤 Нить");
@@ -1770,6 +1843,7 @@ PhotoPuzzleGame.prototype.startWeavePhase = function () {
   this.stage.appendChild(wrap);
   this.stage.appendChild(tools);
   this.weaveWrap = wrap;
+  this.selectFinalPhoto(0);
   this.renderWeaveProgress();
 };
 
@@ -1779,6 +1853,16 @@ PhotoPuzzleGame.prototype.formatRelationshipDate = function () {
   var parts = String(value).split("-");
   if (parts.length !== 3) return value;
   return parts[2] + "." + parts[1] + "." + parts[0].slice(-2);
+};
+
+PhotoPuzzleGame.prototype.selectFinalPhoto = function (index) {
+  if (!this.photos || !this.photos.length || !this.finalPhoto) return false;
+  var count = this.photos.length;
+  this.finalPhotoIndex = ((index % count) + count) % count;
+  this.finalPhoto.src = this.photos[this.finalPhotoIndex];
+  this.finalPhoto.alt = "Воспоминание Вадима и Сонечки " + (this.finalPhotoIndex + 1) + " из " + count;
+  if (this.finalPhotoLabel) this.finalPhotoLabel.textContent = "Воспоминание " + (this.finalPhotoIndex + 1) + " / " + count;
+  return true;
 };
 
 PhotoPuzzleGame.prototype.selectStrand = function (type) {

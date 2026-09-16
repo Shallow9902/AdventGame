@@ -1046,6 +1046,7 @@ test('Day 4 Protocol MY: story, secrecy, config, and preview stage contract', ()
   assert.ok(day4Config, 'Day 4 photoPuzzle config must exist');
   assert.ok(day4Config[0].includes('rows: 4'), 'Day 4 must use four portrait rows');
   assert.ok(day4Config[0].includes('cols: 3'), 'Day 4 must use three portrait columns');
+  assert.ok(day4Config[0].includes('photos: SITE_CONFIG.day4Photos'), 'Day 4 must pass the full memory deck into the puzzle');
   assert.ok(day4Config[0].includes('relationship: SITE_CONFIG.relationship'), 'Day 4 must receive relationship metadata');
 
   const dayToStageMatch = appCode.match(/function dayToStage\(d\) \{([\s\S]*?)\n  \}/);
@@ -1056,6 +1057,67 @@ test('Day 4 Protocol MY: story, secrecy, config, and preview stage contract', ()
   `)(state, { __previewDay: 3 }, 3);
   assert.equal(stageFor({ venomControlled: false, finalForm: false }), 5, 'Preview Day 4 starts infected');
   assert.equal(stageFor({ venomControlled: true, finalForm: false }), 6, 'Preview Day 4 stays controlled after victory');
+});
+
+test('Day 4 Protocol MY: captive sprite, readable symbiote forms, and three-photo memory', () => {
+  const ctx = loadContext();
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const cssCode = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+  const expectedPhotos = [
+    'photos/couple.webp',
+    'photos/photo_2026-02-27_21-48-28.jpg',
+    'photos/photo_2026-03-08_00-22-53.jpg'
+  ];
+
+  assert.equal(ctx.getGrutikStage(4.5).venomMode, 'captive', 'Capture scene needs its own suspended sprite');
+  assert.equal(ctx.getGrutikStage(5).venomMode, 'conflict', 'Infection must keep Groot visible while Venom struggles for control');
+  assert.equal(ctx.getGrutikStage(6).venomMode, 'alliance', 'Consent must switch to a calm, readable shared silhouette');
+
+  const day4FirstLine = appCode.indexOf('L("sonechka", "Грутик?.. Почему ты на потолке?")');
+  const day4SceneStart = appCode.lastIndexOf('S(4.5)', day4FirstLine);
+  const infectIndex = appCode.indexOf('FN(infect)', day4SceneStart);
+  const captiveStageIndex = appCode.indexOf('S(4.5)', day4SceneStart);
+  const infectedStageIndex = appCode.indexOf('S(5)', infectIndex);
+  assert.ok(day4FirstLine > captiveStageIndex && captiveStageIndex < infectIndex, 'Suspended sprite must be visible before infection');
+  assert.ok(infectedStageIndex > infectIndex, 'Conflict sprite must appear only after infect()');
+
+  assert.deepEqual(Array.from(ctx.SITE_CONFIG.day4Photos), expectedPhotos, 'Day 4 must expose all three shared memories');
+  expectedPhotos.forEach(photo => {
+    assert.ok(fs.existsSync(path.join(__dirname, '..', photo)), `Missing Day 4 photo asset: ${photo}`);
+  });
+
+  const container = { innerHTML: '', appendChild() {} };
+  const game = ctx.Games.create('photoPuzzle', container, {
+    photos: ctx.SITE_CONFIG.day4Photos,
+    rows: 4,
+    cols: 3
+  }, () => {});
+  assert.deepEqual(Array.from(game.photos), expectedPhotos, 'Photo puzzle must retain the configured memory deck');
+  assert.equal(game.image, expectedPhotos[0], 'The party portrait remains the assembled puzzle image');
+  assert.equal(game.unlockedPhotoCount(0), 1, 'Only the puzzle portrait is visible initially');
+  assert.equal(game.unlockedPhotoCount(5), 2, 'Second memory unlocks on the fifth connection');
+  assert.equal(game.unlockedPhotoCount(9), 3, 'Third memory unlocks on the ninth connection');
+
+  const galleryGame = Object.create(ctx.PhotoPuzzleGame.prototype);
+  galleryGame.photos = expectedPhotos;
+  galleryGame.memoryCards = expectedPhotos.map(photo => {
+    const button = ctx.document.createElement('button');
+    const image = {
+      removeAttribute(name) { if (name === 'src') delete this.src; }
+    };
+    return { button, image, photo };
+  });
+  galleryGame.renderMemoryGallery(0);
+  assert.equal(galleryGame.memoryCards[0].image.src, expectedPhotos[0], 'Unlocked memory loads its image');
+  assert.equal(Object.hasOwn(galleryGame.memoryCards[1].image, 'src'), false, 'Locked memory must not render a broken empty image');
+  assert.equal(Object.hasOwn(galleryGame.memoryCards[2].image, 'src'), false, 'Every locked memory must omit the src attribute');
+  assert.match(cssCode, /\.protocol-memory-card\.locked \.protocol-memory-thumb\s*\{[^}]*display:\s*none/, 'Locked cards must hide the empty image element');
+
+  game.finalPhoto = { src: '', alt: '' };
+  game.finalPhotoLabel = { textContent: '' };
+  game.selectFinalPhoto(2);
+  assert.equal(game.finalPhoto.src, expectedPhotos[2], 'Final living frame must browse the third memory');
+  assert.match(game.finalPhotoLabel.textContent, /3 \/ 3/, 'Final gallery announces the selected memory');
 });
 
 test('PhotoPuzzleGame Protocol MY: rectangular pieces, release phase, and weave phase', () => {
@@ -1206,7 +1268,7 @@ test('PhotoPuzzleGame Protocol MY: hint, multi-join Venom charge, and bounds rec
   assert.equal(assistGame.useVenomAssist(), true, 'Charged Venom assist must join a valid pair');
   assert.equal(assistGame.pieceStates[0].rotation, 0, 'Moving side of an assisted join must be aligned');
   assert.equal(assistGame.pieceStates[1].rotation, 0, 'Stationary side of an assisted join must also be aligned');
-  assert.match(assistGame.restoreDialogue.textContent, /Так\?/, 'Threshold story beat must remain visible after Venom assist');
+  assert.match(assistGame.restoreDialogue.textContent, /Можно посмотреть\?/, 'Threshold story beat must remain visible after Venom assist');
   assert.doesNotMatch(assistGame.restoreDialogue.textContent, /Не сильнее/, 'Generic assist copy must not overwrite a threshold story beat');
 });
 
