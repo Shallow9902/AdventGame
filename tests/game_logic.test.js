@@ -1161,6 +1161,11 @@ test('PhotoPuzzleGame Day 4: rectangular pieces, 3 sequential puzzles, choice to
   game.startPhotoPuzzle(0);
   assert.equal(game.currentPhotoIndex, 0);
 
+  // Check spacious board geometry and assembly frame
+  assert.equal(game.unitX, 16, 'Pieces must occupy only 16% width so board is spacious');
+  assert.equal(game.unitY, 16, 'Pieces must occupy only 16% height');
+  assert.ok(game.assemblyFrame, 'Assembly frame must exist inside photoBoard');
+
   // Check random scatter
   assert.equal(game.pieceStates.length, 12);
   const distinctX = new Set(game.pieceStates.map(p => p.x));
@@ -1170,11 +1175,14 @@ test('PhotoPuzzleGame Day 4: rectangular pieces, 3 sequential puzzles, choice to
   assert.ok(game.liftPiecesButton, 'liftPiecesButton must be created');
   assert.equal(game.liftPiecesButton.textContent, '⬆ Несобранные детали наверх');
 
-  // Test lifting unassembled pieces
+  // Test lifting and rescuing unassembled pieces trapped under main cluster
   game.joinPhotoPair(0, 1, true); // Pieces 0 and 1 joined into group of 2
+  game.pieceStates[2].x = game.pieceStates[0].x;
+  game.pieceStates[2].y = game.pieceStates[0].y;
   game.liftPiecesButton.click();
   assert.equal(game.pieces[0].classList.contains('lifted'), false, 'Joined piece 0 should not be lifted');
   assert.equal(game.pieces[2].classList.contains('lifted'), true, 'Unassembled piece 2 must be lifted to top layer');
+  assert.notEqual(game.pieceStates[2].x, game.pieceStates[0].x, 'Trapped piece 2 must be rescued and moved out of the assembled cluster');
 
   // Complete puzzle 0
   game.onPuzzleSolved();

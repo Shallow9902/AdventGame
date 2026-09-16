@@ -1141,8 +1141,8 @@ function PhotoPuzzleGame(container, opts, onWin) {
   this.moves = 0;
   this.selected = null;
   this.drag = null;
-  this.unitX = 28;
-  this.unitY = 21;
+  this.unitX = 16;
+  this.unitY = 16;
   this.photos = (opts.photos || (opts.photo ? [opts.photo] : [])).filter(function (photo) { return !!photo; }).slice(0, 3);
   if (!this.photos.length) this.photos.push("");
   this.currentPhotoIndex = 0;
@@ -1216,6 +1216,9 @@ PhotoPuzzleGame.prototype.startPhotoPuzzle = function (index) {
   });
 
   this.photoBoard = gameEl("div", "photo-workspace protocol-photo-workspace");
+  this.assemblyFrame = gameEl("div", "photo-assembly-frame");
+  this.assemblyFrame.innerHTML = '<span class="assembly-frame-hint">Область сборки</span>';
+  this.photoBoard.appendChild(this.assemblyFrame);
   this.preview = gameEl("div", "photo-preview hidden");
 
   for (var pieceIndex = 0; pieceIndex < this.rows * this.cols; pieceIndex++) {
@@ -1329,11 +1332,20 @@ PhotoPuzzleGame.prototype.createPhotoPiece = function (index) {
 };
 
 PhotoPuzzleGame.prototype.scatterPhotoPieces = function () {
-  var maxX = 98 - this.unitX;
-  var maxY = 98 - this.unitY;
+  var marginZones = [
+    { x: 3, y: 3 }, { x: 4, y: 28 }, { x: 3, y: 52 }, { x: 5, y: 76 },
+    { x: 79, y: 3 }, { x: 78, y: 28 }, { x: 80, y: 52 }, { x: 77, y: 76 },
+    { x: 28, y: 1 }, { x: 54, y: 1 }, { x: 28, y: 83 }, { x: 54, y: 83 }
+  ];
+  gameShuffle(marginZones);
   for (var index = 0; index < this.pieceStates.length; index++) {
-    this.pieceStates[index].x = Math.round((2 + Math.random() * (maxX - 2)) * 10) / 10;
-    this.pieceStates[index].y = Math.round((2 + Math.random() * (maxY - 2)) * 10) / 10;
+    var base = marginZones[index % marginZones.length];
+    var jx = (Math.random() - 0.5) * 5;
+    var jy = (Math.random() - 0.5) * 5;
+    var rx = Math.max(1, Math.min(99 - this.unitX, base.x + jx));
+    var ry = Math.max(1, Math.min(99 - this.unitY, base.y + jy));
+    this.pieceStates[index].x = Math.round(rx * 10) / 10;
+    this.pieceStates[index].y = Math.round(ry * 10) / 10;
     this.pieceStates[index].rotation = Math.round((Math.random() * 20 - 10) * 10) / 10;
   }
 };
@@ -1346,18 +1358,39 @@ PhotoPuzzleGame.prototype.liftUnassembledPieces = function () {
   });
 
   var maxGroupSize = 1;
+  var mainGroup = null;
   Object.keys(groupSizes).forEach(function (grp) {
-    if (groupSizes[grp] > maxGroupSize) maxGroupSize = groupSizes[grp];
+    if (groupSizes[grp] > maxGroupSize) {
+      maxGroupSize = groupSizes[grp];
+      mainGroup = Number(grp);
+    }
   });
 
+  var mainBounds = null;
+  if (mainGroup !== null && maxGroupSize > 1) {
+    var minX = 100, minY = 100, maxX = 0, maxY = 0;
+    this.pieceStates.forEach(function (state) {
+      if (state.group === mainGroup) {
+        if (state.x < minX) minX = state.x;
+        if (state.y < minY) minY = state.y;
+        if (state.x + self.unitX > maxX) maxX = state.x + self.unitX;
+        if (state.y + self.unitY > maxY) maxY = state.y + self.unitY;
+      }
+    });
+    mainBounds = { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
+  }
+
+  var rescuedCount = 0;
   this.pieces.forEach(function (piece, index) {
     if (!piece) return;
     var state = self.pieceStates[index];
     var isUnassembled = (maxGroupSize > 1) ? (groupSizes[state.group] < maxGroupSize) : true;
+
     if (isUnassembled) {
       if (self.photoBoard && self.photoBoard.appendChild) {
         self.photoBoard.appendChild(piece);
       }
+      piece.style.zIndex = "40";
       if (piece.classList) {
         piece.classList.add("lifted");
         piece.classList.remove("piece-pulse");
@@ -1366,14 +1399,39 @@ PhotoPuzzleGame.prototype.liftUnassembledPieces = function () {
         }
         piece.classList.add("piece-pulse");
       }
+
+      if (mainBounds) {
+        var pLeft = state.x;
+        var pRight = state.x + self.unitX;
+        var pTop = state.y;
+        var pBottom = state.y + self.unitY;
+        var overlaps = !(pRight <= mainBounds.minX || pLeft >= mainBounds.maxX || pBottom <= mainBounds.minY || pTop >= mainBounds.maxY);
+
+        if (overlaps) {
+          rescuedCount++;
+          if (pLeft < 50) {
+            state.x = Math.round((2 + Math.random() * 5) * 10) / 10;
+          } else {
+            state.x = Math.round((98 - self.unitX - Math.random() * 5) * 10) / 10;
+          }
+          state.y = Math.max(2, Math.min(98 - self.unitY, state.y));
+        }
+      }
     } else {
+      piece.style.zIndex = "5";
       if (piece.classList) {
         piece.classList.remove("lifted");
       }
     }
   });
 
-  this.status.textContent = "Несобранные детали подняты на передний план!";
+  this.renderPhoto();
+
+  if (rescuedCount > 0) {
+    this.status.textContent = "Несобранные детали подняты наверх и освобождены из-под собранной части!";
+  } else {
+    this.status.textContent = "Несобранные детали подняты на передний план!";
+  }
 };
 
 PhotoPuzzleGame.prototype.renderPhoto = function () {
@@ -1611,11 +1669,15 @@ PhotoPuzzleGame.prototype.startPhotoDrag = function (event, index) {
   var group = this.pieceStates[index].group;
   var members = this.groupMembers(group);
   var starts = {};
+  var self = this;
   members.forEach(function (member) {
-    starts[member] = { x: this.pieceStates[member].x, y: this.pieceStates[member].y };
-    this.pieceStates[member].rotation = 0;
-    this.pieces[member].classList.add("dragging");
-  }, this);
+    starts[member] = { x: self.pieceStates[member].x, y: self.pieceStates[member].y };
+    self.pieceStates[member].rotation = 0;
+    self.pieces[member].classList.add("dragging");
+    if (self.photoBoard && self.photoBoard.appendChild) {
+      self.photoBoard.appendChild(self.pieces[member]);
+    }
+  });
   this.selected = group;
   this.drag = { piece: this.pieces[index], index: index, group: group, members: members, starts: starts, x: event.clientX, y: event.clientY, moved: false };
   var piece = this.pieces[index];
