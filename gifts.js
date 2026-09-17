@@ -48,7 +48,8 @@ var GIFT_POOL = [
     title: "Игра для двоих | Али Хейзелвуд",
     text: "Увлекательная романтическая история от Али Хейзелвуд.",
     photo: "photos/2.webp",
-    link: ""
+    link: "",
+    active: false
   },
   {
     id: "g3",

@@ -732,7 +732,7 @@ test('CircuitGame: electricity flows into every physically connected dead-end br
   assert.equal(powered[level.target], undefined, 'Lighting a decoy branch must not complete the route to the exit');
 });
 
-test('Gifts configuration: LEGO gift 7 is active, gift 8 is inactive, and Day 4 guarantees Venomized Groot', () => {
+test('Gifts configuration: gifted book g2 is excluded, LEGO g7 is active, and Day 4 guarantees Venomized Groot', () => {
   const ctx = loadContext();
   const pool = ctx.GIFT_POOL;
   assert.equal(pool.length, 9, 'There should be 9 gifts in GIFT_POOL');
@@ -744,6 +744,7 @@ test('Gifts configuration: LEGO gift 7 is active, gift 8 is inactive, and Day 4 
   }
 
   // Verify currently active/inactive items
+  assert.equal(pool[1].active, false, 'Gift 2 (Игра для двоих) should be inactive after it was gifted');
   assert.notEqual(pool[3].active, false, 'Gift 4 (Принцесса Ардена) should be active');
   assert.notEqual(pool[6].active, false, 'Gift 7 (LEGO Spider-Man) should be active');
   assert.equal(pool[7].active, false, 'Gift 8 (Как приручить дракона) should be inactive');
@@ -768,9 +769,10 @@ test('Gifts configuration: LEGO gift 7 is active, gift 8 is inactive, and Day 4 
   const state = { given: [] };
   const helpers = fn(pool, state);
 
-  // pool() should exclude only inactive gift 8
+  // pool() should exclude inactive gifts 2 and 8
   const activeGifts = helpers.pool();
-  assert.equal(activeGifts.length, 8, 'There should be 8 active gifts');
+  assert.equal(activeGifts.length, 7, 'There should be 7 active gifts');
+  assert.ok(!activeGifts.some(g => g.id === 'g2'), 'Already gifted book should not be in pool()');
   assert.ok(activeGifts.some(g => g.id === 'g7'), 'LEGO gift should be available in pool()');
   assert.ok(!activeGifts.some(g => g.id === 'g8'), 'Inactive dragon gift should not be in pool()');
 
