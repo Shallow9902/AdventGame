@@ -146,6 +146,22 @@ test('After-gift buttons: no "Забрать подарок" and no duplicate DA
   assert.ok(!appCode.includes('var DAY4_AFTER'), 'DAY4_AFTER duplicate scene must stay removed');
 });
 
+test('Day 5 ending and Day 6 story celebrate the birthday without promising a main gift', () => {
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const greet = appCode.match(/var GREET = \[([\s\S]*?)\n  \];/);
+  const aftergift = appCode.match(/var AFTERGIFT = \[([\s\S]*?)\n  \];/);
+  const finalScene = appCode.match(/var FINAL_SCENE = \[([\s\S]*?)\n  \];/);
+
+  assert.ok(greet && aftergift && finalScene, 'Birthday story sections must be present');
+  assert.match(aftergift[1], /завтра[^\n]*день рождения|день рождения[^\n]*завтра/i, 'Day 5 must lead into the birthday');
+  assert.doesNotMatch(aftergift[1], /завтра\s*[—-]?\s*(финал|последний день)/i, 'Day 5 must not call the birthday a finale or last day');
+  assert.match(greet[1], /день рождения/i, 'Day 6 must explicitly celebrate the birthday');
+  assert.doesNotMatch(greet[1], /последний день нашего приключения|главн(?:ый|ого|ому)\s+(?:секрет|сюрприз|подарок)/i, 'Day 6 must not promise a main gift or call the birthday the last day');
+  assert.match(greet[1], /сегодняшн(?:ий|его|ему)\s+секрет/i, 'Day 6 should refer only to today’s secret');
+  assert.doesNotMatch(finalScene[1], /Всё закончено/i, 'The birthday finale must not sound like everything is over');
+  assert.match(finalScene[1], /праздник[^\n]*продолжа/i, 'The final scene must say the celebration continues');
+});
+
 test('Stage logic: dayToStage in regular gameplay and preview mode', () => {
   const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 
