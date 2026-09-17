@@ -580,7 +580,128 @@ test('Calendar progression: 2026-09-14 is day 1 (index 0), 2026-09-19 is day 6 (
   assert.equal(getDayIdxForDate('2026-09-20'), 5, '20 сентября и далее -> День 6 (cap at index 5)');
 });
 
-test('Gifts configuration: 9 items, inactive 7 and 8, and Day 4 Venomized Groot', () => {
+test('CircuitGame: procedural levels contain one long uniquely solvable route instead of powering every cell', () => {
+  const seededRandom = (seed) => () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+
+  [3, 4, 5].forEach((size, levelIndex) => {
+    const ctx = loadContext(seededRandom(100 + levelIndex));
+    const level = ctx.generateCircuitLevel(size, levelIndex);
+    const total = size * size;
+
+    assert.equal(level.size, size);
+    assert.equal(level.connections.length, total, 'Every cell should have a connector set');
+    assert.equal(level.rotations.length, total, 'Every cell should have a starting rotation');
+
+    const route = Array.from(level.path);
+    const routeSet = new Set(route);
+    assert.equal(routeSet.size, route.length, 'The generated route must never visit one cell twice');
+    assert.equal(route[0], level.source, 'The route must begin at Groot');
+    assert.equal(route[route.length - 1], level.target, 'The route must end at the wheel');
+    assert.ok(route.length >= Math.ceil(total * 0.7), 'The route should use at least 70% of the board');
+    assert.ok(route.length < total, 'Some cells must remain damaged instead of requiring the whole board');
+    assert.equal(level.blocked.length, total - route.length, 'Every off-route cell must be marked as damaged');
+    level.blocked.forEach(cell => assert.equal(level.connections[cell].length, 0, 'Damaged cells must not participate in the circuit'));
+
+    for (let i = 1; i < route.length; i++) {
+      const prev = route[i - 1];
+      const cell = route[i];
+      const distance = Math.abs(Math.floor(prev / size) - Math.floor(cell / size)) + Math.abs((prev % size) - (cell % size));
+      assert.equal(distance, 1, 'Consecutive route cells must share an edge');
+    }
+
+    assert.notEqual(level.source, level.target, 'Source and wheel output must be different cells');
+    assert.deepEqual(Array.from(level.fixed).sort((a, b) => a - b), [level.source, level.target].sort((a, b) => a - b), 'Source and wheel output must be fixed anchors');
+    assert.equal(level.rotations[level.source], 0, 'Source anchor must start in its solved orientation');
+    assert.equal(level.rotations[level.target], 0, 'Target anchor must start in its solved orientation');
+    assert.equal(ctx.countCircuitSolutions(level, 2), 1, 'Every generated level must have exactly one valid solution');
+
+    const directionKey = dirs => Array.from(dirs).sort().join(',');
+    const rotatable = level.connections.filter((dirs, index) => routeSet.has(index) && !level.fixed.includes(index) && new Set([0, 1, 2, 3].map(turns => directionKey(dirs.map(dir => (dir + turns) % 4)))).size > 1).length;
+    const wrong = level.connections.filter((dirs, index) => {
+      if (!routeSet.has(index) || level.fixed.includes(index)) return false;
+      const rotated = dirs.map(dir => (dir + level.rotations[index]) % 4);
+      return directionKey(rotated) !== directionKey(dirs);
+    }).length;
+    assert.ok(wrong >= Math.ceil(rotatable * 0.7), 'At least 70% of rotatable tiles should start incorrectly');
+    assert.ok(level.initialPowered <= 2, 'At most two nodes should be powered at the start');
+  });
+
+  const ctxA = loadContext(seededRandom(7));
+  const ctxB = loadContext(seededRandom(19));
+  assert.notDeepEqual(
+    Array.from(ctxA.generateCircuitLevel(5, 2).path),
+    Array.from(ctxB.generateCircuitLevel(5, 2).path),
+    'Different sessions should generate different long routes'
+  );
+});
+
+test('CircuitGame: start gate locks controls and three levels advance 3x3 -> 4x4 -> 5x5', () => {
+  let seed = 37;
+  const ctx = loadContext(() => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  });
+  const game = ctx.Games.create('circuit', { innerHTML: '', appendChild() {} }, {}, () => {});
+
+  assert.deepEqual(Array.from(game.levels, level => level.size), [3, 4, 5]);
+  assert.equal(game.levelIndex, 0);
+  assert.equal(game.tiles.length, 9);
+  assert.equal(game.started, false);
+  assert.ok(game.tiles.every(tile => tile.el.disabled), 'Circuit tiles must stay disabled behind the start overlay');
+  assert.ok(game.stats.textContent.endsWith('0/7'), 'A gated circuit must display zero powered route cells before start');
+
+  const before = game.tiles[0].rotation;
+  game.rotate(0);
+  assert.equal(game.tiles[0].rotation, before, 'Rotating before start must do nothing');
+  assert.equal(game.moves, 0, 'Pre-start input must not increment moves');
+
+  game.startCurrentLevel();
+  assert.equal(game.started, true);
+  assert.ok(game.tiles.filter((tile, index) => game.level.path.includes(index) && !game.level.fixed.includes(index)).every(tile => !tile.el.disabled), 'Starting should unlock ordinary route tiles');
+  assert.ok(game.level.fixed.every(index => game.tiles[index].el.disabled), 'Source and target anchors must remain disabled after start');
+  assert.ok(game.level.blocked.every(index => game.tiles[index].el.disabled), 'Damaged off-route cells must remain disabled');
+
+  const sourceRotation = game.tiles[game.level.source].rotation;
+  game.rotate(game.level.source);
+  assert.equal(game.tiles[game.level.source].rotation, sourceRotation, 'Source anchor must never rotate');
+  assert.equal(game.moves, 0, 'Trying to rotate a fixed anchor must not increment moves');
+
+  game.tiles.forEach(tile => { tile.rotation = 0; });
+  game.renderTiles();
+  game.updatePower();
+  assert.equal(game.levelSolved, true, 'A solved generated circuit should complete the current level');
+  assert.equal(game.done, false, 'Solving level 1 must not finish the whole day');
+
+  game.advanceLevel();
+  assert.equal(game.levelIndex, 1);
+  assert.equal(game.tiles.length, 16);
+  assert.equal(game.started, true);
+
+  game.tiles.forEach(tile => { tile.rotation = 0; });
+  game.renderTiles();
+  game.updatePower();
+  game.advanceLevel();
+  assert.equal(game.levelIndex, 2);
+  assert.equal(game.tiles.length, 25);
+
+  game.tiles.forEach(tile => { tile.rotation = 0; });
+  game.renderTiles();
+  game.updatePower();
+  assert.equal(game.done, true, 'Solving level 3 must finish the Day 5 challenge');
+});
+
+test('CircuitGame: Russian node counter uses correct forms', () => {
+  const ctx = loadContext();
+  assert.equal(ctx.formatCircuitNodeCount(1), '1 узел');
+  assert.equal(ctx.formatCircuitNodeCount(2), '2 узла');
+  assert.equal(ctx.formatCircuitNodeCount(5), '5 узлов');
+  assert.equal(ctx.formatCircuitNodeCount(21), '21 узел');
+});
+
+test('Gifts configuration: LEGO gift 7 is active, gift 8 is inactive, and Day 4 guarantees Venomized Groot', () => {
   const ctx = loadContext();
   const pool = ctx.GIFT_POOL;
   assert.equal(pool.length, 9, 'There should be 9 gifts in GIFT_POOL');
@@ -593,7 +714,7 @@ test('Gifts configuration: 9 items, inactive 7 and 8, and Day 4 Venomized Groot'
 
   // Verify currently active/inactive items
   assert.notEqual(pool[3].active, false, 'Gift 4 (Принцесса Ардена) should be active');
-  assert.equal(pool[6].active, false, 'Gift 7 (LEGO Spider-Man) should be inactive');
+  assert.notEqual(pool[6].active, false, 'Gift 7 (LEGO Spider-Man) should be active');
   assert.equal(pool[7].active, false, 'Gift 8 (Как приручить дракона) should be inactive');
 
   // Verify Gift 6 is Venomized Groot with specialDay: 3
@@ -616,10 +737,11 @@ test('Gifts configuration: 9 items, inactive 7 and 8, and Day 4 Venomized Groot'
   const state = { given: [] };
   const helpers = fn(pool, state);
 
-  // pool() should exclude inactive gifts (7, 8)
+  // pool() should exclude only inactive gift 8
   const activeGifts = helpers.pool();
-  assert.equal(activeGifts.length, 7, 'There should be 7 active gifts');
-  assert.ok(!activeGifts.some(g => ['g7', 'g8'].includes(g.id)), 'Inactive gifts should not be in pool()');
+  assert.equal(activeGifts.length, 8, 'There should be 8 active gifts');
+  assert.ok(activeGifts.some(g => g.id === 'g7'), 'LEGO gift should be available in pool()');
+  assert.ok(!activeGifts.some(g => g.id === 'g8'), 'Inactive dragon gift should not be in pool()');
 
   // Days 0, 1, 2 should NOT have g6 in remainingPool
   assert.ok(!helpers.remainingPool(0).some(g => g.id === 'g6'), 'Day 1 should not have g6');

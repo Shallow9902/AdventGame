@@ -89,8 +89,7 @@ var GIFT_POOL = [
     title: "LEGO Minifigures Человек-паук: Через вселенные",
     text: "Коллекционная минифигурка LEGO Человек-паук.",
     photo: "photos/7.webp",
-    link: "",
-    active: false
+    link: ""
   },
   {
     id: "g8",

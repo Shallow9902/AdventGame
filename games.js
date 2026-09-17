@@ -2373,54 +2373,305 @@ SplitGame.prototype.answer = function (correct, message) {
   this.later(function () { self.nextItem(); }, 520);
 };
 
-var CIRCUIT_PATH = [0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11, 15, 14, 13, 12];
-var DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+var CIRCUIT_DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+var CIRCUIT_LEVELS = [
+  { size: 3, pathLength: 7, name: "Запуск", copy: "Собери первый маршрут" },
+  { size: 4, pathLength: 13, name: "Стабилизация", copy: "Продли путь через повреждённую схему" },
+  { size: 5, pathLength: 21, name: "Полная мощность", copy: "Доведи импульс прямо до колеса" }
+];
+
+function circuitDirectionBetween(a, b, size) {
+  var ar = Math.floor(a / size), ac = a % size;
+  var br = Math.floor(b / size), bc = b % size;
+  if (br < ar) return 0;
+  if (bc > ac) return 1;
+  if (br > ar) return 2;
+  return 3;
+}
+
+function circuitSignature(directions, rotation) {
+  return directions.map(function (dir) { return (dir + (rotation || 0)) % 4; }).sort().join(",");
+}
+
+function circuitNeighbors(cell, size) {
+  var row = Math.floor(cell / size), col = cell % size;
+  var neighbors = [];
+  for (var dir = 0; dir < CIRCUIT_DIRS.length; dir++) {
+    var nr = row + CIRCUIT_DIRS[dir][1], nc = col + CIRCUIT_DIRS[dir][0];
+    if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+    neighbors.push({ cell: nr * size + nc, dir: dir });
+  }
+  return neighbors;
+}
+
+function circuitExitDirection(cell, size) {
+  var row = Math.floor(cell / size), col = cell % size;
+  var sides = [];
+  if (row === 0) sides.push(0);
+  if (col === size - 1) sides.push(1);
+  if (row === size - 1) sides.push(2);
+  if (col === 0) sides.push(3);
+  gameShuffle(sides);
+  return sides[0];
+}
+
+function circuitPoweredCells(level, rotations) {
+  var powered = {};
+  var rotated = function (cell) {
+    return level.connections[cell].map(function (dir) { return (dir + rotations[cell]) % 4; });
+  };
+  if (!level.path || !level.path.length || rotated(level.source).indexOf(level.sourceDir) === -1) return powered;
+  powered[level.source] = true;
+  for (var i = 1; i < level.path.length; i++) {
+    var previous = level.path[i - 1];
+    var cell = level.path[i];
+    var dir = circuitDirectionBetween(previous, cell, level.size);
+    if (rotated(previous).indexOf(dir) === -1 || rotated(cell).indexOf((dir + 2) % 4) === -1) break;
+    powered[cell] = true;
+  }
+  return powered;
+}
+
+function countCircuitSolutions(level, limit) {
+  var maxSolutions = limit || 2;
+  if (!level.path || level.path.length < 2 || level.path[0] !== level.source || level.path[level.path.length - 1] !== level.target) return 0;
+  if (new Set(level.path).size !== level.path.length) return 0;
+  var solutions = 1;
+  for (var i = 0; i < level.path.length; i++) {
+    var cell = level.path[i];
+    if (i > 0 && circuitNeighbors(level.path[i - 1], level.size).every(function (neighbor) { return neighbor.cell !== cell; })) return 0;
+    var correct = circuitSignature(level.connections[cell], 0);
+    var turns = level.fixed.indexOf(cell) !== -1 ? [0] : [0, 1, 2, 3];
+    var seen = {};
+    var matching = 0;
+    turns.forEach(function (rotation) {
+      var signature = circuitSignature(level.connections[cell], rotation);
+      if (seen[signature]) return;
+      seen[signature] = true;
+      if (signature === correct) matching++;
+    });
+    solutions *= matching;
+    if (solutions === 0 || solutions >= maxSolutions) return Math.min(solutions, maxSolutions);
+  }
+  return solutions;
+}
+
+function scrambleCircuit(connections, level) {
+  var rotations = connections.map(function () { return Math.floor(Math.random() * 4); });
+  var rotatable = [];
+  connections.forEach(function (directions, index) {
+    if (level.fixed.indexOf(index) !== -1 || level.blocked.indexOf(index) !== -1) {
+      rotations[index] = 0;
+      return;
+    }
+    var correct = circuitSignature(directions, 0);
+    var wrongTurns = [];
+    for (var turns = 1; turns < 4; turns++) {
+      if (circuitSignature(directions, turns) !== correct) wrongTurns.push(turns);
+    }
+    if (wrongTurns.length) rotatable.push({ index: index, turns: wrongTurns });
+  });
+  gameShuffle(rotatable);
+  var wrongGoal = Math.ceil(rotatable.length * 0.7);
+  for (var i = 0; i < wrongGoal; i++) {
+    var item = rotatable[i];
+    item.turns = gameShuffle(item.turns);
+    rotations[item.index] = item.turns[0];
+  }
+
+  var powered = circuitPoweredCells(level, rotations);
+  var guard = 0;
+  while (Object.keys(powered).length > 2 && guard++ < connections.length) {
+    var poweredCells = Object.keys(powered).map(Number).filter(function (cell) { return level.fixed.indexOf(cell) === -1 && level.blocked.indexOf(cell) === -1; });
+    var changed = false;
+    for (var p = poweredCells.length - 1; p >= 0; p--) {
+      var poweredCell = poweredCells[p];
+      var correctSignature = circuitSignature(connections[poweredCell], 0);
+      var breakingTurns = [1, 2, 3].filter(function (turns) {
+        return circuitSignature(connections[poweredCell], turns) !== correctSignature;
+      });
+      if (!breakingTurns.length) continue;
+      rotations[poweredCell] = breakingTurns[0];
+      changed = true;
+      break;
+    }
+    if (!changed) break;
+    powered = circuitPoweredCells(level, rotations);
+  }
+  return { rotations: rotations, initialPowered: Object.keys(powered).length };
+}
+
+function buildCircuitCandidate(size, levelIndex) {
+  var total = size * size;
+  var source = 0;
+  var sourceDir = 3;
+  var definition = CIRCUIT_LEVELS[levelIndex] || CIRCUIT_LEVELS[CIRCUIT_LEVELS.length - 1];
+  var desiredLength = Math.min(total - 1, definition.pathLength);
+  var path = [source];
+  var visited = Array(total).fill(false);
+  var searched = 0;
+  visited[source] = true;
+
+  function isBorder(cell) {
+    var row = Math.floor(cell / size), col = cell % size;
+    return row === 0 || row === size - 1 || col === 0 || col === size - 1;
+  }
+
+  function extendPath(cell) {
+    if (++searched > 200000) return false;
+    if (path.length === desiredLength) return cell !== source && isBorder(cell);
+    var options = circuitNeighbors(cell, size).filter(function (neighbor) { return !visited[neighbor.cell]; });
+    gameShuffle(options);
+    for (var optionIndex = 0; optionIndex < options.length; optionIndex++) {
+      var nextCell = options[optionIndex].cell;
+      visited[nextCell] = true;
+      path.push(nextCell);
+      if (extendPath(nextCell)) return true;
+      path.pop();
+      visited[nextCell] = false;
+    }
+    return false;
+  }
+
+  if (!extendPath(source)) return null;
+
+  var connections = Array.from({ length: total }, function () { return []; });
+  connections[source].push(sourceDir);
+  for (var i = 1; i < path.length; i++) {
+    var previous = path[i - 1], current = path[i];
+    var direction = circuitDirectionBetween(previous, current, size);
+    connections[previous].push(direction);
+    connections[current].push((direction + 2) % 4);
+  }
+  var target = path[path.length - 1];
+  var targetDir = circuitExitDirection(target, size);
+  connections[target].push(targetDir);
+
+  var pathLookup = {};
+  path.forEach(function (cell) { pathLookup[cell] = true; });
+  var blocked = [];
+  for (var cellIndex = 0; cellIndex < total; cellIndex++) {
+    if (!pathLookup[cellIndex]) blocked.push(cellIndex);
+  }
+
+  var level = {
+    size: size,
+    levelIndex: levelIndex || 0,
+    source: source,
+    sourceDir: sourceDir,
+    target: target,
+    targetDir: targetDir,
+    fixed: [source, target],
+    path: path,
+    blocked: blocked,
+    connections: connections
+  };
+  return level;
+}
+
+function generateCircuitLevel(size, levelIndex) {
+  for (var attempt = 0; attempt < 500; attempt++) {
+    var level = buildCircuitCandidate(size, levelIndex);
+    if (!level) continue;
+    if (countCircuitSolutions(level, 2) !== 1) continue;
+    var scrambled = scrambleCircuit(level.connections, level);
+    if (scrambled.initialPowered > 2) continue;
+    level.rotations = scrambled.rotations;
+    level.initialPowered = scrambled.initialPowered;
+    level.solutionCount = 1;
+    return level;
+  }
+  throw new Error("Не удалось создать однозначную схему " + size + "×" + size);
+}
+
+function formatCircuitNodeCount(count) {
+  var mod100 = count % 100;
+  var mod10 = count % 10;
+  var word = "узлов";
+  if (mod100 < 11 || mod100 > 14) {
+    if (mod10 === 1) word = "узел";
+    else if (mod10 >= 2 && mod10 <= 4) word = "узла";
+  }
+  return count + " " + word;
+}
 
 function CircuitGame(container, opts, onWin) {
   GameBase.call(this, container, opts, onWin);
+  this.levels = CIRCUIT_LEVELS.slice();
+  this.levelIndex = 0;
+  this.started = false;
+  this.levelSolved = false;
   this.moves = 0;
-  this.size = 4;
   this.arena.classList.add("circuit-arena");
+
+  this.panel = gameEl("div", "circuit-panel");
+  this.route = gameEl("div", "circuit-route");
+  this.route.innerHTML = '<span class="circuit-route-source">🌿 ГРУТИК</span><i></i><span class="circuit-route-target">🎡 КОЛЕСО</span>';
+  this.panel.appendChild(this.route);
+
+  this.fuseBar = gameEl("div", "circuit-fuses");
+  for (var fuse = 0; fuse < 4; fuse++) this.fuseBar.appendChild(gameEl("i", "circuit-fuse"));
+  this.panel.appendChild(this.fuseBar);
+
   this.board = gameEl("div", "circuit-board");
-  this.arena.appendChild(this.board);
+  this.panel.appendChild(this.board);
+  this.levelNote = gameEl("div", "circuit-level-note");
+  this.panel.appendChild(this.levelNote);
+  this.arena.appendChild(this.panel);
   this.tiles = [];
-  this.buildCircuit();
-  this.updatePower();
-  this.gate("Подать питание", "Поворачивай элементы. Свет должен пройти непрерывно от левого верхнего входа через все 16 узлов.", function () {});
+  this.startLevel(0, false);
+  var self = this;
+  this.gate("Подать питание", "Собери длинный путь от Грутика к колесу. Повреждённые клетки с крестиком в маршрут не входят.", function () {
+    self.startCurrentLevel();
+  });
 }
 
 CircuitGame.prototype = Object.create(GameBase.prototype);
 CircuitGame.prototype.constructor = CircuitGame;
 
-CircuitGame.prototype.directionBetween = function (a, b) {
-  var ar = Math.floor(a / this.size), ac = a % this.size;
-  var br = Math.floor(b / this.size), bc = b % this.size;
-  if (br < ar) return 0;
-  if (bc > ac) return 1;
-  if (br > ar) return 2;
-  return 3;
-};
-
-CircuitGame.prototype.buildCircuit = function () {
-  var pathIndex = {};
-  CIRCUIT_PATH.forEach(function (cell, i) { pathIndex[cell] = i; });
+CircuitGame.prototype.startLevel = function (index, autoStart) {
+  this.levelIndex = index;
+  this.size = this.levels[index].size;
+  this.level = generateCircuitLevel(this.size, index);
+  this.started = !!autoStart;
+  this.levelSolved = false;
+  this.moves = 0;
+  this.fuseStage = 0;
+  this.board.innerHTML = "";
+  this.board.style.gridTemplateColumns = "repeat(" + this.size + ", 1fr)";
+  this.board.classList.toggle("is-live", this.started);
+  this.levelNote.textContent = "КОНТУР " + (index + 1) + "/" + this.levels.length + " · " + this.levels[index].name + " — " + this.levels[index].copy;
+  this.tiles = [];
   var self = this;
-  for (var cell = 0; cell < 16; cell++) {
-    var pos = pathIndex[cell];
-    var correct = [];
-    if (pos === 0) correct.push(3);
-    else correct.push(this.directionBetween(cell, CIRCUIT_PATH[pos - 1]));
-    if (pos === CIRCUIT_PATH.length - 1) correct.push(3);
-    else correct.push(this.directionBetween(cell, CIRCUIT_PATH[pos + 1]));
-    var rotation = Math.floor(Math.random() * 4);
+  for (var cell = 0; cell < this.size * this.size; cell++) {
     var button = gameEl("button", "circuit-tile");
+    button.type = "button";
+    button.disabled = !this.started || this.level.fixed.indexOf(cell) !== -1 || this.level.blocked.indexOf(cell) !== -1;
     button.setAttribute("aria-label", "Повернуть узел " + (cell + 1));
     button.addEventListener("click", (function (idx) { return function () { self.rotate(idx); }; })(cell));
     this.board.appendChild(button);
-    this.tiles.push({ el: button, correct: correct, rotation: rotation });
+    this.tiles.push({
+      el: button,
+      correct: this.level.connections[cell].slice(),
+      rotation: this.level.rotations[cell],
+      source: cell === this.level.source,
+      target: cell === this.level.target,
+      fixed: this.level.fixed.indexOf(cell) !== -1,
+      blocked: this.level.blocked.indexOf(cell) !== -1
+    });
   }
-  if (this.tiles.every(function (tile) { return tile.rotation === 0; })) this.tiles[5].rotation = 1;
   this.renderTiles();
+  this.updatePower();
+};
+
+CircuitGame.prototype.startCurrentLevel = function () {
+  if (this.done || this.levelSolved) return;
+  this.started = true;
+  this.board.classList.add("is-live");
+  this.tiles.forEach(function (tile) { tile.el.disabled = tile.fixed || tile.blocked; });
+  this.updatePower();
+  var firstInteractive = this.tiles.find(function (tile) { return !tile.fixed && !tile.blocked; });
+  if (firstInteractive && typeof firstInteractive.el.focus === "function") firstInteractive.el.focus();
 };
 
 CircuitGame.prototype.connections = function (tile) {
@@ -2429,17 +2680,32 @@ CircuitGame.prototype.connections = function (tile) {
 
 CircuitGame.prototype.renderTiles = function () {
   var self = this;
-  this.tiles.forEach(function (tile) {
+  this.tiles.forEach(function (tile, index) {
     tile.el.innerHTML = "";
+    if (tile.blocked) {
+      tile.el.classList.add("blocked");
+      tile.el.appendChild(gameEl("span", "circuit-damage", "×"));
+      tile.el.setAttribute("aria-label", "Повреждённая секция, путь здесь не проходит");
+      return;
+    }
+    tile.el.classList.remove("blocked");
     self.connections(tile).forEach(function (dir) {
       tile.el.appendChild(gameEl("span", "wire d" + dir));
     });
     tile.el.appendChild(gameEl("i", "circuit-core"));
+    tile.el.classList.toggle("source", tile.source);
+    tile.el.classList.toggle("target", tile.target);
+    tile.el.classList.toggle("fixed", tile.fixed);
+    if (tile.source) tile.el.appendChild(gameEl("span", "circuit-terminal source-terminal", "🔒 ВХОД"));
+    if (tile.target) tile.el.appendChild(gameEl("span", "circuit-terminal target-terminal", "🔒 ВЫХОД"));
+    tile.el.setAttribute("aria-label", tile.fixed
+      ? (tile.source ? "Закреплённый вход Грутика" : "Закреплённый выход к колесу")
+      : "Повернуть узел " + (index + 1) + ", поворот " + tile.rotation + " из 3");
   });
 };
 
 CircuitGame.prototype.rotate = function (idx) {
-  if (this.done) return;
+  if (this.done || !this.started || this.levelSolved || this.level.fixed.indexOf(idx) !== -1 || this.level.blocked.indexOf(idx) !== -1) return;
   this.tiles[idx].rotation = (this.tiles[idx].rotation + 1) % 4;
   this.moves++;
   this.renderTiles();
@@ -2447,33 +2713,66 @@ CircuitGame.prototype.rotate = function (idx) {
 };
 
 CircuitGame.prototype.updatePower = function () {
-  var powered = {};
-  var queue = [];
-  var firstConnections = this.connections(this.tiles[0]);
-  if (firstConnections.indexOf(3) !== -1) {
-    powered[0] = true;
-    queue.push(0);
-  }
-  while (queue.length) {
-    var cell = queue.shift();
-    var row = Math.floor(cell / this.size), col = cell % this.size;
-    var current = this.connections(this.tiles[cell]);
-    for (var i = 0; i < current.length; i++) {
-      var dir = current[i];
-      var nr = row + DIRS[dir][1], nc = col + DIRS[dir][0];
-      if (nr < 0 || nr >= this.size || nc < 0 || nc >= this.size) continue;
-      var next = nr * this.size + nc;
-      if (this.connections(this.tiles[next]).indexOf((dir + 2) % 4) === -1 || powered[next]) continue;
-      powered[next] = true;
-      queue.push(next);
-    }
-  }
+  var rotations = this.tiles.map(function (tile) { return tile.rotation; });
+  var powered = circuitPoweredCells(this.level, rotations);
   var count = Object.keys(powered).length;
-  this.tiles.forEach(function (tile, i) { tile.el.classList.toggle("powered", !!powered[i]); });
-  this.stats.textContent = count + " / 16";
-  this.status.textContent = "Ходов: " + this.moves + ". Под напряжением: " + count + " узлов.";
-  var last = this.tiles[CIRCUIT_PATH[CIRCUIT_PATH.length - 1]];
-  if (count === 16 && this.connections(last).indexOf(3) !== -1) this.complete("Колесо снова под напряжением");
+  var visibleCount = this.started ? count : 0;
+  var total = this.level.path.length;
+  this.tiles.forEach(function (tile, i) {
+    tile.el.classList.toggle("powered", this.started && !!powered[i]);
+    tile.el.disabled = !this.started || this.levelSolved || tile.fixed || tile.blocked;
+  }, this);
+  this.stats.textContent = "КОНТУР " + (this.levelIndex + 1) + "/" + this.levels.length + " · " + visibleCount + "/" + total;
+
+  var reachedFuses = 0;
+  for (var fuse = 0; fuse < this.fuseBar.children.length; fuse++) {
+    var threshold = Math.ceil(total * (fuse + 1) / this.fuseBar.children.length);
+    var active = visibleCount >= threshold;
+    this.fuseBar.children[fuse].classList.toggle("active", active);
+    if (active) reachedFuses++;
+  }
+  var pulse = "";
+  if (this.started && reachedFuses > this.fuseStage) {
+    this.fuseStage = reachedFuses;
+    var pulses = ["Грутик: Первый участок ожил!", "Веном: Поток стабилизируется.", "Грутик: Почти получилось!", "Веном: Контур замкнут."];
+    pulse = " " + pulses[Math.min(reachedFuses - 1, pulses.length - 1)];
+    this.panel.classList.remove("power-pulse");
+    void this.panel.offsetWidth;
+    this.panel.classList.add("power-pulse");
+  }
+  this.status.textContent = this.started
+    ? "Ходов: " + this.moves + ". Под напряжением: " + formatCircuitNodeCount(count) + "." + pulse
+    : "Схема обесточена. Нажми «Подать питание», чтобы начать.";
+
+  var targetConnections = this.connections(this.tiles[this.level.target]);
+  if (this.started && count === total && targetConnections.indexOf(this.level.targetDir) !== -1) this.finishLevel();
+};
+
+CircuitGame.prototype.finishLevel = function () {
+  if (this.levelSolved || this.done) return;
+  this.levelSolved = true;
+  this.tiles.forEach(function (tile) { tile.el.disabled = true; });
+  if (this.levelIndex === this.levels.length - 1) {
+    this.complete("Все три маршрута ведут к колесу");
+    return;
+  }
+  var result = gameEl("div", "game-result circuit-level-result");
+  result.appendChild(gameEl("div", "result-mark", "⚡"));
+  result.appendChild(gameEl("strong", null, "Контур «" + this.levels[this.levelIndex].name + "» восстановлен"));
+  result.appendChild(gameEl("p", "gate-copy", "Мощность растёт. Следующая схема будет больше и сложнее."));
+  var next = gameEl("button", "btn big", "Следующий контур →");
+  var self = this;
+  next.addEventListener("click", function () { self.advanceLevel(); });
+  result.appendChild(next);
+  this.arena.appendChild(result);
+  this.levelOverlay = result;
+};
+
+CircuitGame.prototype.advanceLevel = function () {
+  if (!this.levelSolved || this.levelIndex >= this.levels.length - 1) return;
+  if (this.levelOverlay) this.levelOverlay.remove();
+  this.levelOverlay = null;
+  this.startLevel(this.levelIndex + 1, true);
 };
 
 function FinaleGame(container, opts, onWin) {
