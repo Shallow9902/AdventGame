@@ -580,7 +580,7 @@ test('Calendar progression: 2026-09-14 is day 1 (index 0), 2026-09-19 is day 6 (
   assert.equal(getDayIdxForDate('2026-09-20'), 5, '20 сентября и далее -> День 6 (cap at index 5)');
 });
 
-test('CircuitGame: procedural levels contain one long uniquely solvable route instead of powering every cell', () => {
+test('CircuitGame: procedural levels contain one long unique route and working decoy tiles', () => {
   const seededRandom = (seed) => () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
     return seed / 4294967296;
@@ -601,9 +601,10 @@ test('CircuitGame: procedural levels contain one long uniquely solvable route in
     assert.equal(route[0], level.source, 'The route must begin at Groot');
     assert.equal(route[route.length - 1], level.target, 'The route must end at the wheel');
     assert.ok(route.length >= Math.ceil(total * 0.7), 'The route should use at least 70% of the board');
-    assert.ok(route.length < total, 'Some cells must remain damaged instead of requiring the whole board');
-    assert.equal(level.blocked.length, total - route.length, 'Every off-route cell must be marked as damaged');
-    level.blocked.forEach(cell => assert.equal(level.connections[cell].length, 0, 'Damaged cells must not participate in the circuit'));
+    assert.ok(route.length < total, 'Some cells must remain outside the correct route to mislead the player');
+    assert.equal(level.decoys.length, total - route.length, 'Every off-route cell must be a decoy');
+    assert.ok(level.connections.every(directions => directions.length > 0), 'The board must not contain empty cells');
+    level.decoys.forEach(cell => assert.equal(level.connections[cell].length, 1, 'A decoy must be a rotatable dead-end wire'));
 
     for (let i = 1; i < route.length; i++) {
       const prev = route[i - 1];
@@ -662,7 +663,8 @@ test('CircuitGame: start gate locks controls and three levels advance 3x3 -> 4x4
   assert.equal(game.started, true);
   assert.ok(game.tiles.filter((tile, index) => game.level.path.includes(index) && !game.level.fixed.includes(index)).every(tile => !tile.el.disabled), 'Starting should unlock ordinary route tiles');
   assert.ok(game.level.fixed.every(index => game.tiles[index].el.disabled), 'Source and target anchors must remain disabled after start');
-  assert.ok(game.level.blocked.every(index => game.tiles[index].el.disabled), 'Damaged off-route cells must remain disabled');
+  assert.ok(game.level.decoys.every(index => !game.tiles[index].el.disabled), 'Decoy cells must rotate like ordinary route tiles');
+  assert.ok(game.level.decoys.every(index => game.tiles[index].correct.length === 1), 'Decoys must display real wire stubs instead of empty damage marks');
 
   const sourceRotation = game.tiles[game.level.source].rotation;
   game.rotate(game.level.source);
@@ -699,6 +701,35 @@ test('CircuitGame: Russian node counter uses correct forms', () => {
   assert.equal(ctx.formatCircuitNodeCount(2), '2 узла');
   assert.equal(ctx.formatCircuitNodeCount(5), '5 узлов');
   assert.equal(ctx.formatCircuitNodeCount(21), '21 узел');
+});
+
+test('CircuitGame: electricity flows into every physically connected dead-end branch', () => {
+  const ctx = loadContext();
+  const level = {
+    size: 3,
+    source: 0,
+    sourceDir: 3,
+    target: 8,
+    targetDir: 2,
+    fixed: [0, 8],
+    path: [0, 1, 4, 5, 8],
+    decoys: [2, 3, 6, 7],
+    connections: [
+      [3, 1], [3, 2], [2],
+      [1], [0, 1], [3, 2],
+      [0], [1], [0, 2]
+    ]
+  };
+  const rotations = [0, 0, 0, 0, 3, 0, 0, 0, 0];
+
+  const powered = ctx.circuitPoweredNetwork(level, rotations);
+
+  assert.deepEqual(
+    Object.keys(powered).map(Number).sort((a, b) => a - b),
+    [0, 1, 3, 4],
+    'A wrong turn must still conduct electricity into a connected decoy dead end'
+  );
+  assert.equal(powered[level.target], undefined, 'Lighting a decoy branch must not complete the route to the exit');
 });
 
 test('Gifts configuration: LEGO gift 7 is active, gift 8 is inactive, and Day 4 guarantees Venomized Groot', () => {
