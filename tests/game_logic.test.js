@@ -31,7 +31,8 @@ function loadContext(random = Math.random) {
             this._innerHTML = val;
             if (!val) this.children = [];
           },
-          setAttribute(k, v) { this[k] = v; },
+          setAttribute(k, v) { this[k] = String(v); },
+          getAttribute(k) { return this[k]; },
           removeAttribute(k) { delete this[k]; },
           appendChild(child) { this.children.push(child); return child; },
           removeChild(child) {
@@ -59,6 +60,25 @@ function loadContext(random = Math.random) {
               }
             }
             return null;
+          },
+          querySelectorAll(sel) {
+            const results = [];
+            const walk = (node) => {
+              for (const child of node.children) {
+                if (sel.startsWith('.')) {
+                  const selectors = sel.split(',').map(s => s.trim());
+                  for (const s of selectors) {
+                    if (s.startsWith('.') && child.className && child.className.includes(s.slice(1))) {
+                      results.push(child);
+                      break;
+                    }
+                  }
+                }
+                if (child.children && child.children.length) walk(child);
+              }
+            };
+            walk(this);
+            return results;
           }
         };
         return el;
@@ -67,6 +87,7 @@ function loadContext(random = Math.random) {
         return sandbox.document.createElement(tag);
       },
       documentElement: { classList: { add() {}, remove() {}, toggle() {} } },
+      getElementById: () => null,
       querySelector: () => null,
       querySelectorAll: () => []
     },
@@ -136,6 +157,13 @@ test('Story and GREET: Day 1, Day 4, Day 5, Day 6 checks', () => {
   // Day 6
   assert.ok(greetContent.includes('SONECHKA'), 'Day 6 greeting should reference Protocol SONECHKA');
   assert.ok(greetContent.includes('заблокировано') || greetContent.includes('мощности мало') || greetContent.includes('защита'), 'Day 6 greeting should explain why wheel is locked');
+  assert.ok(!appCode.includes('Три фазы. Один финальный запуск'), 'Day 6 config text should no longer advertise three phases');
+  assert.ok(appCode.includes('3 праздничных этапа с фото'), 'Day 6 config should advertise 4 locks of birthday mechanism');
+  assert.ok(appCode.includes('Праздничный механизм'), 'Day 6 title should be Праздничный механизм');
+  assert.ok(!greetContent.includes('Три фазы'), 'Day 6 greeting must not advertise three phases');
+  assert.ok(!greetContent.includes('запомни код'), 'Day 6 must not talk about code memory');
+  assert.ok(!greetContent.includes('удержи баланс'), 'Day 6 must not talk about balance');
+  assert.ok(!greetContent.includes('точных импульса'), 'Day 6 must not talk about pulse target');
 });
 
 test('After-gift buttons: no "Забрать подарок" and no duplicate DAY4_AFTER', () => {
@@ -1495,3 +1523,101 @@ test('PhotoPuzzleGame Protocol MY: hint, multi-join Venom charge, and bounds rec
   assert.doesNotMatch(assistGame.restoreDialogue.textContent, /Не сильнее/, 'Generic assist copy must not overwrite a threshold story beat');
 });
 
+
+test('FinaleGame: 3 photo-based birthday phases with progressive unlocking', () => {
+  const ctx = loadContext();
+  const mockContainer = {
+    innerHTML: '',
+    appendChild(c) { return c; }
+  };
+
+  let won = false;
+  const game = ctx.Games.create('finale', mockContainer, {}, () => {
+    won = true;
+  });
+
+  // 1. Initial state — 3 phases
+  assert.equal(game.phaseIndex, 0, 'Must start at phase 0');
+  assert.deepEqual(Array.from(game.solvedPhases), [false, false, false], 'All 3 phases unsolved');
+  assert.equal(game.stats.textContent, '0%', 'Initial progress 0%');
+
+  // backward compat
+  assert.equal(game.lockIndex, 0, 'lockIndex alias must work');
+  assert.strictEqual(game.solvedLocks, game.solvedPhases, 'solvedLocks must alias solvedPhases');
+
+  // Dismiss gate
+  if (game.gateBtn && game.gateBtn.click) game.gateBtn.click();
+
+  // 2. Phase 1: Timeline
+  assert.ok(game.phaseLabel.textContent.includes('ЛЕНТА ВОСПОМИНАНИЙ'), 'Phase 1 label');
+
+  // Solve timeline programmatically
+  game.solveLock(0);
+  assert.equal(game.solvedPhases[0], true, 'Phase 1 solved');
+  assert.equal(game.stats.textContent, '33%', 'Progress 33% after phase 1');
+  assert.ok(!game.nextPhaseWrap.classList.contains('hidden'), 'Next button visible');
+
+  // Advance
+  game.nextPhase();
+  assert.equal(game.phaseIndex, 1);
+
+  // 3. Phase 2: Scratch cards
+  assert.ok(game.phaseLabel.textContent.includes('ПОЖЕЛАНИЯ'), 'Phase 2 label');
+
+  game.solveLock(1);
+  assert.equal(game.solvedPhases[1], true, 'Phase 2 solved');
+  assert.equal(game.stats.textContent, '67%', 'Progress 67% after phase 2');
+
+  // Advance
+  game.nextPhase();
+  assert.equal(game.phaseIndex, 2);
+
+  // 4. Phase 3: Cake
+  assert.ok(game.phaseLabel.textContent.includes('ТОРТ'), 'Phase 3 label');
+
+  // Blow individual candles
+  game.blowCandle(0);
+  assert.equal(game.candlesBlown[0], true, 'Candle 0 blown');
+  assert.equal(game.solvedPhases[2], false, 'Not done yet');
+
+  // Blow remaining
+  for (var k = 1; k < 6; k++) game.blowCandle(k);
+  assert.equal(game.solvedPhases[2], true, 'Phase 3 solved');
+  assert.equal(game.stats.textContent, '100%', 'Progress 100%');
+
+  // Completion
+  assert.ok(game.phaseLabel.textContent.includes('ПРАЗДНИК ЗАПУЩЕН'));
+  assert.equal(game.completedMessage, 'Праздничный механизм запущен');
+})
+
+test('Day 6 texts no longer advertise three phases, code, balance, or impulse', () => {
+  const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const gamesCode = fs.readFileSync(path.join(__dirname, '..', 'games.js'), 'utf8');
+
+  // app.js Day 6 config
+  assert.match(appCode, /type:\s*"finale"[^}]+badge:\s*"Праздник"/, 'Day 6 config badge must be "Праздник"');
+  assert.match(appCode, /3 праздничных этапа с фото/, 'Day 6 description must be 3 photo phases');
+  assert.match(appCode, /title:\s*"Праздничный механизм"/, 'Day 6 title must be "Праздничный механизм"');
+  assert.match(appCode, /Фото, пожелания и торт — запусти праздник!/, 'Day 6 instruction must match requirement');
+
+  // app.js Day 6 GREET
+  const greetMatch = appCode.match(/var GREET = \[([\s\S]*?)\];/);
+  assert.ok(greetMatch);
+  const greetContent = greetMatch[1];
+  assert.ok(!greetContent.includes('Три фазы'), 'Day 6 greeting must not mention "Три фазы"');
+  assert.ok(!greetContent.includes('запомни код'), 'Day 6 greeting must not mention remembering code');
+  assert.ok(!greetContent.includes('удержи баланс'), 'Day 6 greeting must not mention balance');
+  assert.ok(!greetContent.includes('точных импульса'), 'Day 6 greeting must not mention pulse hits');
+
+  // games.js FinaleGame internals
+  assert.ok(!gamesCode.includes('startEcho'), 'Old startEcho must be removed');
+  assert.ok(!gamesCode.includes('showFinalCode'), 'Old showFinalCode must be removed');
+  assert.ok(!gamesCode.includes('startBalance'), 'Old startBalance must be removed');
+  assert.ok(!gamesCode.includes('startPulse'), 'Old startPulse must be removed');
+  assert.ok(!gamesCode.includes('finalPulseLoop'), 'Old finalPulseLoop must be removed');
+
+  // POSTWIN[5] behavior
+  const postwinMatch = appCode.match(/var POSTWIN = \[([\s\S]*?)\];/);
+  assert.ok(postwinMatch);
+  assert.ok(postwinMatch[1].includes('FN(unlockFinal)'), 'POSTWIN[5] must still call unlockFinal');
+});

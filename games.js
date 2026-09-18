@@ -69,6 +69,7 @@ function GameBase(container, opts, onWin) {
 
   container.innerHTML = "";
   container.appendChild(this.root);
+  if (typeof window !== "undefined") window.__currentGame = this;
 }
 
 GameBase.prototype.later = function (fn, ms) {
@@ -105,6 +106,7 @@ GameBase.prototype.gate = function (label, text, start) {
     overlay.appendChild(gameEl("p", "gate-copy", text));
   }
   var btn = gameEl("button", "btn big", label || "Начать");
+  this.gateBtn = btn;
   overlay.appendChild(btn);
   this.arena.appendChild(overlay);
   btn.addEventListener("click", function () {
@@ -116,6 +118,7 @@ GameBase.prototype.gate = function (label, text, start) {
 GameBase.prototype.complete = function (text) {
   if (this.done) return;
   this.done = true;
+  this.completedMessage = text || "Испытание пройдено";
   this.clearAsync();
   this.root.classList.add("game-complete");
   var result = gameEl("div", "game-result");
@@ -2800,193 +2803,536 @@ CircuitGame.prototype.advanceLevel = function () {
 
 function FinaleGame(container, opts, onWin) {
   GameBase.call(this, container, opts, onWin);
-  this.phase = 0;
-  this.phaseScore = 0;
-  this.arena.classList.add("finale-arena");
-  this.phaseLabel = gameEl("div", "finale-phase", "ФАЗА 1 / 3");
-  this.stage = gameEl("div", "finale-stage");
-  this.arena.appendChild(this.phaseLabel);
-  this.arena.appendChild(this.stage);
-  this.stats.textContent = "0%";
+  this.phaseIndex = 0;
+  this.solvedPhases = [false, false, false];
+  // backward compat aliases for tests
+  this.lockIndex = 0;
+  this.solvedLocks = this.solvedPhases;
+
+  this.arena.classList.add("finale-arena", "birthday-mechanism");
+
+  this.phaseLabel = gameEl("div", "finale-phase birthday-phase", "ЭТАП 1 / 3 · ЛЕНТА ВОСПОМИНАНИЙ");
+
+  this.mechanismHub = gameEl("div", "birthday-mechanism-hub");
+  this.sectorTrack = gameEl("div", "mechanism-sectors");
+  this.sectorElements = [];
+  var phaseTitles = ["📷 Лента", "✨ Пожелания", "🎂 Торт"];
+  for (var i = 0; i < 3; i++) {
+    var s = gameEl("div", "mechanism-sector sector-" + (i + 1));
+    s.innerHTML = '<span class="sector-num">' + (i + 1) + '</span><span class="sector-name">' + phaseTitles[i] + '</span>';
+    this.sectorTrack.appendChild(s);
+    this.sectorElements.push(s);
+  }
+  this.mechanismHub.appendChild(this.sectorTrack);
+
+  this.dialogueBox = gameEl("div", "birthday-dialogue");
+  this.dialogueSpeaker = gameEl("span", "birthday-dialogue-speaker sp-groot", "🌿 Грутик");
+  this.dialogueLine = gameEl("p", "birthday-dialogue-text", "");
+  this.dialogueBox.appendChild(this.dialogueSpeaker);
+  this.dialogueBox.appendChild(this.dialogueLine);
+
+  this.stage = gameEl("div", "finale-stage birthday-stage");
+
+  this.nextPhaseWrap = gameEl("div", "birthday-nav hidden");
+  this.nextPhaseBtn = gameEl("button", "btn-next-lock", "Дальше ➔");
   var self = this;
-  this.gate("Начать финал", "Три фазы без перезапуска: запомни код, удержи баланс и нанеси три точных импульса.", function () {
-    self.startEcho();
+  this.nextPhaseBtn.addEventListener("click", function () { self.nextPhase(); });
+  this.nextPhaseWrap.appendChild(this.nextPhaseBtn);
+  // backward compat alias
+  this.nextLockWrap = this.nextPhaseWrap;
+  this.nextLockBtn = this.nextPhaseBtn;
+
+  this.arena.appendChild(this.phaseLabel);
+  this.arena.appendChild(this.mechanismHub);
+  this.arena.appendChild(this.dialogueBox);
+  this.arena.appendChild(this.stage);
+  this.arena.appendChild(this.nextPhaseWrap);
+
+  this.stats.textContent = "0%";
+
+  this.timelinePhotos = (typeof SITE_CONFIG !== "undefined" && SITE_CONFIG.finaleTimeline) || [];
+  this.scratchPhotos = (typeof SITE_CONFIG !== "undefined" && SITE_CONFIG.finaleScratch) || [];
+  this.memoryPhotos = (typeof SITE_CONFIG !== "undefined" && SITE_CONFIG.memoryPhotos) || [];
+
+  this.gate("Начать праздник", "День рождения Сонечки: лента воспоминаний, праздничные пожелания и торт со свечами.", function () {
+    self.startPhase(0);
   });
 }
 
 FinaleGame.prototype = Object.create(GameBase.prototype);
 FinaleGame.prototype.constructor = FinaleGame;
 
-FinaleGame.prototype.setPhase = function (n, status) {
-  this.phase = n;
-  this.phaseLabel.textContent = "ФАЗА " + (n + 1) + " / 3";
-  this.stats.textContent = Math.round(n / 3 * 100) + "%";
-  this.status.textContent = status;
+FinaleGame.prototype.setDialogue = function (speaker, text, isVenom) {
+  this.dialogueSpeaker.textContent = speaker;
+  this.dialogueSpeaker.className = "birthday-dialogue-speaker " + (isVenom ? "sp-venom" : "sp-groot");
+  this.dialogueLine.textContent = text;
+};
+
+FinaleGame.prototype.updateProgress = function () {
+  var count = 0;
+  for (var i = 0; i < this.solvedPhases.length; i++) {
+    if (this.solvedPhases[i]) {
+      count++;
+      this.sectorElements[i].classList.add("solved");
+    } else {
+      this.sectorElements[i].classList.remove("solved");
+    }
+    if (i === this.phaseIndex) {
+      this.sectorElements[i].classList.add("active");
+    } else {
+      this.sectorElements[i].classList.remove("active");
+    }
+  }
+  var pct = Math.round((count / 3) * 100);
+  this.stats.textContent = pct + "%";
+};
+
+FinaleGame.prototype.startPhase = function (index) {
+  this.phaseIndex = index;
+  this.lockIndex = index;
+  this.nextPhaseWrap.classList.add("hidden");
   this.stage.innerHTML = "";
+  this.updateProgress();
+
+  if (index === 0) {
+    this.phaseLabel.textContent = "ЭТАП 1 / 3 · ЛЕНТА ВОСПОМИНАНИЙ";
+    this.setDialogue("🌿 Грутик", "Я есть Грутик! (Я собирал ваши лучшие моменты, но всё перепутал...)");
+    this.buildTimeline();
+  } else if (index === 1) {
+    this.phaseLabel.textContent = "ЭТАП 2 / 3 · ПРАЗДНИЧНЫЕ ПОЖЕЛАНИЯ";
+    this.setDialogue("🖤 Веном", "Мы спрятали кое-что в ваших фотографиях. Потри — и увидишь.", true);
+    this.buildScratchCards();
+  } else if (index === 2) {
+    this.phaseLabel.textContent = "ЭТАП 3 / 3 · ПРАЗДНИЧНЫЙ ТОРТ";
+    this.setDialogue("🌿 Грутик", "Я есть Грутик! (Мы испекли торт! Задуй свечи — и загадай желание!)");
+    this.buildCake();
+  }
 };
 
-FinaleGame.prototype.startEcho = function () {
-  this.setPhase(0, "Запомни пятизначный код.");
-  this.finalTiles = [];
-  this.finalSequence = [];
-  this.finalInput = 0;
-  this.finalLocked = true;
-  var grid = gameEl("div", "finale-code");
+FinaleGame.prototype.onPhaseSolved = function (idx, speaker, text, isVenom) {
+  this.solvedPhases[idx] = true;
+  this.solvedLocks[idx] = true;
+  this.updateProgress();
+  this.setDialogue(speaker, text, isVenom);
+
+  if (idx < 2) {
+    this.nextPhaseWrap.classList.remove("hidden");
+  } else {
+    this.finishAll();
+  }
+};
+
+FinaleGame.prototype.nextPhase = function () {
+  this.nextLock();
+};
+
+FinaleGame.prototype.nextLock = function () {
+  if (this.phaseIndex < 2) {
+    this.startPhase(this.phaseIndex + 1);
+  }
+};
+
+// ======================= PHASE 1: TIMELINE =======================
+
+FinaleGame.prototype.buildTimeline = function () {
   var self = this;
-  for (var i = 0; i < 6; i++) {
-    var tile = gameEl("button", "finale-code-tile", String(i + 1));
-    tile.addEventListener("click", (function (idx) { return function () { self.finalEchoPick(idx); }; })(i));
-    grid.appendChild(tile);
-    this.finalTiles.push(tile);
+  var photos = this.timelinePhotos.slice();
+  // Store correct order
+  this.timelineOrder = photos.map(function (p, i) { return i; });
+  // Shuffle for display
+  var shuffled = photos.map(function (p, i) { return { photo: p, correctIdx: i }; });
+  gameShuffle(shuffled);
+  // Make sure shuffled is not already in order
+  var inOrder = shuffled.every(function (s, i) { return s.correctIdx === i; });
+  if (inOrder && shuffled.length > 1) {
+    var tmp = shuffled[0]; shuffled[0] = shuffled[1]; shuffled[1] = tmp;
   }
-  this.stage.appendChild(grid);
-  while (this.finalSequence.length < 5) {
-    var n = Math.floor(Math.random() * 6);
-    if (this.finalSequence[this.finalSequence.length - 1] !== n) this.finalSequence.push(n);
+
+  this.timelineSlots = [];
+  this.timelinePlaced = {};
+  this.timelineCardData = shuffled;
+
+  var wrap = gameEl("div", "timeline-wrap");
+
+  // Cards pool (shuffled)
+  var pool = gameEl("div", "timeline-pool");
+  this.timelineCards = [];
+  for (var i = 0; i < shuffled.length; i++) {
+    (function (item, idx) {
+      var card = gameEl("div", "timeline-card");
+      card.setAttribute("data-idx", String(item.correctIdx));
+      card.setAttribute("draggable", "true");
+      var img = gameEl("div", "timeline-card-img");
+      img.style.backgroundImage = "url('" + item.photo.src + "')";
+      card.appendChild(img);
+      card.appendChild(gameEl("div", "timeline-card-label", item.photo.label));
+      card.addEventListener("dragstart", function (e) {
+        e.dataTransfer.setData("text/plain", String(item.correctIdx));
+        card.classList.add("dragging");
+      });
+      card.addEventListener("dragend", function () {
+        card.classList.remove("dragging");
+      });
+      // Touch support
+      card.addEventListener("pointerdown", function (e) {
+        self._dragCard = card;
+        self._dragIdx = item.correctIdx;
+        card.classList.add("dragging");
+      });
+      pool.appendChild(card);
+      self.timelineCards.push(card);
+    })(shuffled[i], i);
   }
-  this.showFinalCode();
-};
 
-FinaleGame.prototype.showFinalCode = function () {
-  var self = this;
-  this.finalLocked = true;
-  this.finalInput = 0;
-  this.finalSequence.forEach(function (idx, step) {
-    self.later(function () {
-      self.finalTiles[idx].classList.add("signal");
-      self.later(function () { self.finalTiles[idx].classList.remove("signal"); }, 330);
-    }, 300 + step * 520);
-  });
-  this.later(function () {
-    self.finalLocked = false;
-    self.status.textContent = "Повтори код.";
-  }, 480 + this.finalSequence.length * 520);
-};
-
-FinaleGame.prototype.finalEchoPick = function (idx) {
-  if (this.finalLocked || this.done) return;
-  if (idx !== this.finalSequence[this.finalInput]) {
-    this.status.textContent = "Код сбился. Смотри ещё раз.";
-    this.showFinalCode();
-    return;
+  // Timeline slots
+  var timeline = gameEl("div", "timeline-slots");
+  for (var j = 0; j < photos.length; j++) {
+    (function (slotIdx) {
+      var slot = gameEl("div", "timeline-slot");
+      slot.setAttribute("data-slot", String(slotIdx));
+      slot.textContent = (slotIdx + 1);
+      // DnD events
+      slot.addEventListener("dragover", function (e) { e.preventDefault(); slot.classList.add("drag-over"); });
+      slot.addEventListener("dragleave", function () { slot.classList.remove("drag-over"); });
+      slot.addEventListener("drop", function (e) {
+        e.preventDefault();
+        slot.classList.remove("drag-over");
+        var cardIdx = parseInt(e.dataTransfer.getData("text/plain"), 10);
+        self.placeTimelineCard(cardIdx, slotIdx);
+      });
+      // Pointer drop target
+      slot.addEventListener("pointerup", function () {
+        if (self._dragCard && self._dragIdx != null) {
+          self.placeTimelineCard(self._dragIdx, slotIdx);
+          if (self._dragCard) self._dragCard.classList.remove("dragging");
+          self._dragCard = null;
+          self._dragIdx = null;
+        }
+      });
+      timeline.appendChild(slot);
+      self.timelineSlots.push(slot);
+    })(j);
   }
-  this.finalTiles[idx].classList.add("correct");
-  var tile = this.finalTiles[idx];
-  this.later(function () { tile.classList.remove("correct"); }, 250);
-  this.finalInput++;
-  if (this.finalInput === this.finalSequence.length) {
-    var self = this;
-    this.finalLocked = true;
-    this.stats.textContent = "33%";
-    this.status.textContent = "Код принят.";
-    this.later(function () { self.startBalance(); }, 650);
-  }
+
+  var arrow = gameEl("div", "timeline-arrow", "↓ Расставь по порядку ↓");
+  wrap.appendChild(pool);
+  wrap.appendChild(arrow);
+  wrap.appendChild(timeline);
+  this.stage.appendChild(wrap);
 };
 
-FinaleGame.prototype.startBalance = function () {
-  this.setPhase(1, "Направляй сигнал по стрелке. При инверсии — наоборот.");
-  this.balanceScore = 0;
-  this.balanceTurn = 0;
-  this.balanceCue = gameEl("div", "balance-cue");
-  var actions = gameEl("div", "balance-actions");
-  var left = gameEl("button", "balance-button", "←");
-  var right = gameEl("button", "balance-button", "→");
-  actions.appendChild(left);
-  actions.appendChild(right);
-  this.stage.appendChild(this.balanceCue);
-  this.stage.appendChild(actions);
-  var self = this;
-  left.addEventListener("click", function () { self.balancePick("left"); });
-  right.addEventListener("click", function () { self.balancePick("right"); });
-  this.nextBalance();
-};
+FinaleGame.prototype.placeTimelineCard = function (cardIdx, slotIdx) {
+  // cardIdx is the correctIdx of the photo
+  // slotIdx is the position on the timeline
+  if (this.timelinePlaced[slotIdx] != null) return; // slot taken
 
-FinaleGame.prototype.nextBalance = function () {
-  this.balanceTurn++;
-  this.balanceExpected = Math.random() < 0.5 ? "left" : "right";
-  this.balanceReverse = this.balanceTurn === 3 || this.balanceTurn === 7;
-  this.balanceCue.className = "balance-cue" + (this.balanceReverse ? " reverse" : "");
-  this.balanceCue.textContent = (this.balanceReverse ? "ИНВЕРСИЯ  " : "") + (this.balanceExpected === "left" ? "←" : "→");
-  this.balanceActive = true;
-};
+  if (cardIdx === slotIdx) {
+    // Correct!
+    this.timelinePlaced[slotIdx] = cardIdx;
+    var slot = this.timelineSlots[slotIdx];
+    slot.classList.add("filled");
+    var photo = this.timelinePhotos[cardIdx];
+    slot.innerHTML = "";
+    var img = gameEl("div", "timeline-slot-img");
+    img.style.backgroundImage = "url('" + photo.src + "')";
+    slot.appendChild(img);
+    slot.appendChild(gameEl("div", "timeline-slot-label", photo.label));
 
-FinaleGame.prototype.balancePick = function (side) {
-  if (!this.balanceActive || this.done) return;
-  var correct = this.balanceReverse ? side !== this.balanceExpected : side === this.balanceExpected;
-  if (!correct) {
-    this.status.textContent = "Баланс качнулся. Читай режим перед стрелкой.";
-    this.balanceCue.classList.add("bad");
-    return;
-  }
-  this.balanceActive = false;
-  this.balanceScore++;
-  this.balanceCue.classList.add("good");
-  if (this.balanceScore >= 8) {
-    var self = this;
-    this.stats.textContent = "66%";
-    this.status.textContent = "Баланс удержан.";
-    this.later(function () { self.startPulse(); }, 600);
-    return;
-  }
-  var selfNext = this;
-  this.later(function () { selfNext.nextBalance(); }, 260);
-};
+    // Hide the card from pool
+    for (var i = 0; i < this.timelineCards.length; i++) {
+      if (parseInt(this.timelineCards[i].getAttribute("data-idx"), 10) === cardIdx) {
+        this.timelineCards[i].classList.add("placed");
+        break;
+      }
+    }
 
-FinaleGame.prototype.startPulse = function () {
-  this.setPhase(2, "Три точных импульса. Коридор будет сужаться.");
-  this.finalHits = 0;
-  this.finalPulseRunning = true;
-  this.finalPulse = gameEl("div", "final-pulse");
-  this.finalPulseTarget = gameEl("span", "final-pulse-target");
-  this.finalPulseCursor = gameEl("i", "final-pulse-cursor");
-  this.finalPulse.appendChild(this.finalPulseTarget);
-  this.finalPulse.appendChild(this.finalPulseCursor);
-  this.finalPulseButton = gameEl("button", "pulse-lock", "ИМПУЛЬС");
-  this.stage.appendChild(this.finalPulse);
-  this.stage.appendChild(this.finalPulseButton);
-  var self = this;
-  this.finalPulseButton.addEventListener("click", function () { self.finalLock(); });
-  this.newFinalPulse();
-  this.finalPulseLoop(performance.now());
-};
-
-FinaleGame.prototype.newFinalPulse = function () {
-  this.finalTargetWidth = 0.14 - this.finalHits * 0.025;
-  this.finalTargetStart = 0.1 + Math.random() * (0.8 - this.finalTargetWidth);
-  this.finalPulseTarget.style.left = this.finalTargetStart * 100 + "%";
-  this.finalPulseTarget.style.width = this.finalTargetWidth * 100 + "%";
-};
-
-FinaleGame.prototype.finalPulseLoop = function (time) {
-  if (!this.finalPulseRunning || this.done) return;
-  this.finalPosition = (Math.sin(time * (0.0016 + this.finalHits * 0.0003)) + 1) / 2;
-  this.finalPulseCursor.style.left = this.finalPosition * 100 + "%";
-  var self = this;
-  this.frame(function (next) { self.finalPulseLoop(next); });
-};
-
-FinaleGame.prototype.finalLock = function () {
-  if (!this.finalPulseRunning || this.done) return;
-  this.finalPulseRunning = false;
-  var hit = this.finalPosition >= this.finalTargetStart && this.finalPosition <= this.finalTargetStart + this.finalTargetWidth;
-  this.finalPulse.classList.add(hit ? "hit" : "miss");
-  if (hit) {
-    this.finalHits++;
-    this.stats.textContent = 66 + this.finalHits * 11 + "%";
-    this.status.textContent = "Попадание " + this.finalHits + " из 3.";
-    if (this.finalHits >= 3) {
-      this.stats.textContent = "100%";
-      this.complete("Финальная форма разблокирована");
-      return;
+    // Check if all placed
+    var allPlaced = Object.keys(this.timelinePlaced).length === this.timelinePhotos.length;
+    if (allPlaced) {
+      this.onPhaseSolved(0, "🌿 Грутик", "Я есть Грутик! (Все моменты на месте! Какая красивая лента!)");
     }
   } else {
-    this.status.textContent = "Мимо. Последний этап требует точности.";
+    // Wrong slot
+    var slot = this.timelineSlots[slotIdx];
+    slot.classList.add("wrong");
+    var self = this;
+    setTimeout(function () { slot.classList.remove("wrong"); }, 600);
+    this.setDialogue("🌿 Грутик", "Я есть Грутик... (Кажется, это было " + (cardIdx < slotIdx ? "раньше" : "позже") + "...)");
   }
+};
+
+// ======================= PHASE 2: SCRATCH CARDS =======================
+
+FinaleGame.prototype.buildScratchCards = function () {
   var self = this;
-  this.later(function () {
-    self.finalPulse.classList.remove("hit", "miss");
-    self.newFinalPulse();
-    self.finalPulseRunning = true;
-    self.finalPulseLoop(performance.now());
-  }, 500);
+  var photos = this.scratchPhotos.slice();
+  this.scratchRevealed = {};
+  this.scratchCount = photos.length;
+
+  var grid = gameEl("div", "scratch-grid");
+
+  this.scratchCanvases = [];
+
+  for (var i = 0; i < photos.length; i++) {
+    (function (photo, idx) {
+      var card = gameEl("div", "scratch-card");
+
+      // Photo + wish underneath
+      var content = gameEl("div", "scratch-content");
+      var img = gameEl("div", "scratch-photo");
+      img.style.backgroundImage = "url('" + photo.src + "')";
+      content.appendChild(img);
+      content.appendChild(gameEl("p", "scratch-wish", photo.wish));
+      card.appendChild(content);
+
+      // Canvas overlay (the frost)
+      var cvs = document.createElement("canvas");
+      cvs.width = 280;
+      cvs.height = 220;
+      cvs.className = "scratch-canvas";
+      card.appendChild(cvs);
+
+      // Draw frost pattern
+      var ctx = cvs.getContext ? cvs.getContext("2d") : null;
+      if (ctx) {
+        // Sparkly frost gradient
+        var grad = ctx.createLinearGradient(0, 0, 280, 220);
+        grad.addColorStop(0, "#c8e6f5");
+        grad.addColorStop(0.5, "#e8f0f8");
+        grad.addColorStop(1, "#d0eaff");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 280, 220);
+        // Sparkle dots
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        for (var s = 0; s < 60; s++) {
+          var sx = Math.random() * 280;
+          var sy = Math.random() * 220;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 1.5 + Math.random() * 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Center text
+        ctx.fillStyle = "rgba(100,140,180,0.6)";
+        ctx.font = "bold 18px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("✨ Потри здесь ✨", 140, 115);
+      }
+
+      // Scratch interaction
+      var scratching = false;
+      var totalPixels = 280 * 220;
+      function erase(x, y) {
+        if (!ctx) return;
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.beginPath();
+        ctx.arc(x, y, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalCompositeOperation = "source-over";
+      }
+      function checkReveal() {
+        if (self.scratchRevealed[idx]) return;
+        if (!ctx) return;
+        var imageData = ctx.getImageData(0, 0, 280, 220);
+        var transparent = 0;
+        for (var p = 3; p < imageData.data.length; p += 4) {
+          if (imageData.data[p] < 10) transparent++;
+        }
+        var pct = transparent / totalPixels;
+        if (pct > 0.55) {
+          self.scratchRevealed[idx] = true;
+          cvs.style.opacity = "0";
+          cvs.style.pointerEvents = "none";
+          card.classList.add("revealed");
+          self.checkScratchDone();
+        }
+      }
+      function getPos(e) {
+        var rect = cvs.getBoundingClientRect();
+        var touch = e.touches ? e.touches[0] : e;
+        return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+      }
+      cvs.addEventListener("pointerdown", function (e) {
+        scratching = true;
+        var p = getPos(e);
+        erase(p.x, p.y);
+      });
+      cvs.addEventListener("pointermove", function (e) {
+        if (!scratching) return;
+        var p = getPos(e);
+        erase(p.x, p.y);
+      });
+      cvs.addEventListener("pointerup", function () {
+        scratching = false;
+        checkReveal();
+      });
+      cvs.addEventListener("pointerleave", function () {
+        if (scratching) {
+          scratching = false;
+          checkReveal();
+        }
+      });
+      // Touch events fallback
+      cvs.addEventListener("touchstart", function (e) { e.preventDefault(); });
+      cvs.addEventListener("touchmove", function (e) { e.preventDefault(); });
+
+      grid.appendChild(card);
+      self.scratchCanvases.push({ canvas: cvs, ctx: ctx, card: card, idx: idx });
+    })(photos[i], i);
+  }
+
+  this.stage.appendChild(grid);
+};
+
+FinaleGame.prototype.revealScratchCard = function (idx) {
+  if (this.scratchRevealed[idx]) return;
+  this.scratchRevealed[idx] = true;
+  if (this.scratchCanvases && this.scratchCanvases[idx]) {
+    var c = this.scratchCanvases[idx];
+    c.canvas.style.opacity = "0";
+    c.canvas.style.pointerEvents = "none";
+    c.card.classList.add("revealed");
+  }
+  this.checkScratchDone();
+};
+
+FinaleGame.prototype.checkScratchDone = function () {
+  var count = 0;
+  for (var k in this.scratchRevealed) {
+    if (this.scratchRevealed[k]) count++;
+  }
+  if (count >= this.scratchCount) {
+    this.onPhaseSolved(1, "🖤 Веном", "Все пожелания открыты. Неплохо.", true);
+  } else if (count === 1) {
+    this.setDialogue("🌿 Грутик", "Я есть Грутик! (О, первое послание! Продолжай!)");
+  } else if (count === 2) {
+    this.setDialogue("🖤 Веном", "Ещё " + (this.scratchCount - count) + ". Три — не три.", true);
+  }
+};
+
+// ======================= PHASE 3: BIRTHDAY CAKE =======================
+
+FinaleGame.prototype.buildCake = function () {
+  var self = this;
+  this.candlesBlown = {};
+  this.totalCandles = 6;
+
+  var wrap = gameEl("div", "cake-wrap");
+
+  // Cake body (HTML/CSS)
+  var cake = gameEl("div", "birthday-cake");
+  var cakeTop = gameEl("div", "cake-top");
+  var cakeMid = gameEl("div", "cake-middle");
+  var cakeBot = gameEl("div", "cake-bottom");
+  cake.appendChild(cakeTop);
+  cake.appendChild(cakeMid);
+  cake.appendChild(cakeBot);
+
+  // Candles
+  var candleRow = gameEl("div", "candle-row");
+  this.candleElements = [];
+  var dayIcons = ["🌸", "🌿", "✦", "🖤", "💡", "🎂"];
+  var dayNames = ["Воспоминания", "Block Blast", "Звёздные нити", "Фотопазл", "Живая схема", "Праздник"];
+
+  for (var i = 0; i < 6; i++) {
+    (function (idx) {
+      var candle = gameEl("div", "cake-candle");
+      var flame = gameEl("div", "candle-flame");
+      candle.appendChild(flame);
+      candle.appendChild(gameEl("span", "candle-icon", dayIcons[idx]));
+      candle.addEventListener("click", function () {
+        self.blowCandle(idx);
+      });
+      candleRow.appendChild(candle);
+      self.candleElements.push({ el: candle, flame: flame });
+    })(i);
+  }
+
+  // Memories row (revealed as candles are blown)
+  var memoriesRow = gameEl("div", "cake-memories");
+  this.memorySlots = [];
+  for (var j = 0; j < 6; j++) {
+    var slot = gameEl("div", "cake-memory-slot hidden");
+    slot.innerHTML = '<span class="memory-icon">' + dayIcons[j] + '</span><span class="memory-label">День ' + (j + 1) + '</span><span class="memory-name">' + dayNames[j] + '</span>';
+    memoriesRow.appendChild(slot);
+    this.memorySlots.push(slot);
+  }
+
+  wrap.appendChild(candleRow);
+  wrap.appendChild(cake);
+  wrap.appendChild(memoriesRow);
+  this.stage.appendChild(wrap);
+};
+
+FinaleGame.prototype.blowCandle = function (idx) {
+  if (this.candlesBlown[idx]) return;
+  this.candlesBlown[idx] = true;
+
+  var c = this.candleElements[idx];
+  c.flame.classList.add("blown");
+  c.el.classList.add("blown");
+
+  // Reveal memory
+  if (this.memorySlots[idx]) {
+    this.memorySlots[idx].classList.remove("hidden");
+    this.memorySlots[idx].classList.add("appear");
+  }
+
+  var count = Object.keys(this.candlesBlown).length;
+  if (count < this.totalCandles) {
+    if (count === 1) {
+      this.setDialogue("🌿 Грутик", "Я есть Грутик! (Фух! Одна погасла!)");
+    } else if (count === 3) {
+      this.setDialogue("🖤 Веном", "Половина. Продолжай.", true);
+    } else if (count === 5) {
+      this.setDialogue("🌿 Грутик", "Я есть Грутик... (Последняя! Загадай желание!)");
+    }
+  } else {
+    this.onPhaseSolved(2, "🌿 Грутик", "Я ЕСТЬ ГРУТИК! (С днём рождения!!!)");
+  }
+};
+
+// ======================= FINISH =======================
+
+FinaleGame.prototype.finishAll = function () {
+  this.phaseLabel.textContent = "🎂 ПРАЗДНИК ЗАПУЩЕН!";
+  this.stage.classList.add("celebrating");
+  try { if (typeof confetti === "function") confetti(); } catch (e) {}
+  this.complete("Праздничный механизм запущен");
+};
+
+// ======================= SOLVERS =======================
+
+FinaleGame.prototype.solveLock = function (idx) {
+  this.solvePhase(idx);
+};
+
+FinaleGame.prototype.solvePhase = function (idx) {
+  if (idx === 0) {
+    // Place all timeline photos correctly
+    if (this.timelinePhotos && this.timelinePhotos.length > 0) {
+      for (var i = 0; i < this.timelinePhotos.length; i++) {
+        this.placeTimelineCard(i, i);
+      }
+    } else {
+      this.onPhaseSolved(0, "🌿 Грутик", "Я есть Грутик! (Все моменты на месте!)");
+    }
+  } else if (idx === 1) {
+    // Reveal all scratch cards
+    if (this.scratchCanvases) {
+      for (var j = 0; j < this.scratchCanvases.length; j++) {
+        this.revealScratchCard(j);
+      }
+    } else {
+      this.onPhaseSolved(1, "🖤 Веном", "Все пожелания открыты.", true);
+    }
+  } else if (idx === 2) {
+    // Blow all candles
+    for (var k = 0; k < this.totalCandles; k++) {
+      this.blowCandle(k);
+    }
+  }
+};
+
+FinaleGame.prototype.solveCurrentLock = function () {
+  this.solvePhase(this.phaseIndex);
 };

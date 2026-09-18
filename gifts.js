@@ -30,6 +30,20 @@ var SITE_CONFIG = {
     "photos/11.jpg",
     "photos/12.jpg"
   ],
+  finaleTimeline: [
+    { src: "photos/photo_2025-08-26_04-56-15.jpg", label: "Август 2025" },
+    { src: "photos/photo_2026-01-31_19-04-09.jpg", label: "Январь 2026" },
+    { src: "photos/photo_2026-02-15_01-30-31.jpg", label: "Февраль 2026" },
+    { src: "photos/photo_2026-02-27_21-48-28.jpg", label: "Конец февраля" },
+    { src: "photos/photo_2026-03-08_00-22-53.jpg", label: "Март 2026" }
+  ],
+  finaleScratch: [
+    { src: "photos/01.jpg", wish: "С днём рождения! Ты — лучшее, что случилось 💖" },
+    { src: "photos/03.jpg", wish: "Каждый день с тобой — подарок 🌟" },
+    { src: "photos/05.jpg", wish: "Спасибо за каждую улыбку 🤗" },
+    { src: "photos/09.jpg", wish: "Всегда рядом. Всегда вместе 💫" }
+  ],
+
   finalMessage: "Спасибо, что играешь каждый день со мной. Ты — мой самый главный приз. Люблю тебя!"
 };
 
