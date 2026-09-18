@@ -2905,26 +2905,94 @@ FinaleGame.prototype.buildLeaves = function () {
   var wrap = gameEl("div", "finale-unwrap-wrap");
   var photo = this.surprises[0];
   var img = gameEl("div", "unwrap-photo");
-  img.style.backgroundImage = "url('" + photo.src + "')";
+  img.style.backgroundImage = "url('" + encodeURI(photo.src) + "')";
   wrap.appendChild(img);
 
-  this.leafCount = 14;
   var overlay = gameEl("div", "leaves-overlay");
-  for(var i = 0; i < this.leafCount; i++) {
-    var leaf = gameEl("div", "leaf");
-    leaf.style.left = (Math.random() * 80) + "%";
-    leaf.style.top = (Math.random() * 80) + "%";
-    leaf.style.transform = "rotate(" + (Math.random()*360) + "deg) scale(" + (0.9 + Math.random()*0.4) + ")";
-    leaf.addEventListener("pointerdown", function(e) {
-      if (this.classList.contains("falling")) return;
-      this.classList.add("falling");
-      self.leafCount--;
-      if (self.leafCount <= 0 && !self.solvedPhases[0]) {
+  overlay.style.touchAction = "none"; // block scroll while swiping
+
+  var cols = 8;
+  var rows = 8;
+  var totalLeaves = cols * rows;
+  this.leafCount = totalLeaves;
+  this.autoClearing = false;
+
+  var popLeaf = function(el, force) {
+    if (el.classList.contains("falling")) return;
+    el.classList.add("falling");
+    self.leafCount--;
+
+    // Фишка: когда остается мало листиков, "ветер" сам сдувает остальные!
+    if (self.leafCount <= totalLeaves * 0.25 && !self.autoClearing) {
+      self.autoClearing = true;
+      self.setDialogue("🌿 Грутик", "Я есть Грутик! (Ууу, ветер помогает!)");
+      var remaining = overlay.querySelectorAll(".leaf:not(.falling)");
+      remaining.forEach(function(l, i) {
+        setTimeout(function() { popLeaf(l, true); }, Math.random() * 800 + i * 40);
+      });
+    }
+
+    if (self.leafCount <= 0 && !self.solvedPhases[0]) {
+      setTimeout(function() {
         self.onPhaseSolved(0, "🌿 Грутик", "Я есть Грутик! (" + (photo.caption || "Красиво получилось!") + ")");
+      }, 500);
+    }
+  };
+
+  // Generate dense grid with random offset, scale, and color
+  for (var r = 0; r < rows; r++) {
+    for (var c = 0; c < cols; c++) {
+      var leaf = gameEl("div", "leaf");
+      
+      if (Math.random() < 0.15) {
+        leaf.classList.add("flower");
       }
-    });
-    overlay.appendChild(leaf);
+
+      var px = (c / (cols - 1) * 110) - 5 + (Math.random() * 10 - 5);
+      var py = (r / (rows - 1) * 110) - 5 + (Math.random() * 10 - 5);
+      
+      leaf.style.left = px + "%";
+      leaf.style.top = py + "%";
+      
+      var rot = Math.random() * 360;
+      var scale = 0.8 + Math.random() * 1.2; 
+      var hue = Math.random() * 100 - 40; 
+      var br = 0.7 + Math.random() * 0.5;
+      
+      leaf.style.setProperty("--rot", rot + "deg");
+      leaf.style.setProperty("--scale", scale);
+      leaf.style.setProperty("--hue", hue + "deg");
+      leaf.style.setProperty("--br", br);
+      
+      overlay.appendChild(leaf);
+    }
   }
+
+  // Swipe / wipe mechanics
+  var handleMove = function(clientX, clientY) {
+    var el = document.elementFromPoint(clientX, clientY);
+    if (el && (el.classList.contains("leaf") || el.classList.contains("flower"))) {
+      popLeaf(el);
+    }
+  };
+
+  overlay.addEventListener("touchmove", function(e) {
+    e.preventDefault();
+    for (var i = 0; i < e.touches.length; i++) {
+      handleMove(e.touches[i].clientX, e.touches[i].clientY);
+    }
+  });
+  
+  overlay.addEventListener("mousemove", function(e) {
+    if (e.buttons > 0) {
+      handleMove(e.clientX, e.clientY);
+    }
+  });
+  
+  overlay.addEventListener("pointerdown", function(e) {
+    handleMove(e.clientX, e.clientY);
+  });
+
   wrap.appendChild(overlay);
   this.stage.appendChild(wrap);
 };

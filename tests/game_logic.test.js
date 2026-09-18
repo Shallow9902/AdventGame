@@ -23,7 +23,7 @@ function loadContext(random = Math.random) {
             contains(c) { return this.classes.has(c); }
           },
           dataset: {},
-          style: {},
+          style: { setProperty: function(k, v) { this[k] = v; } },
           children: [],
           _innerHTML: '',
           get innerHTML() { return this._innerHTML; },
@@ -1007,9 +1007,13 @@ test('renderReplayCards: Generates correct cards for completed days', () => {
 
   const makeEl = (tag, cls, text) => {
     const el = {
-      tagName: tag.toUpperCase(),
+      tagName: tag,
       className: cls || '',
       textContent: text || '',
+      innerHTML: '',
+      style: {
+        setProperty(k, v) { this[k] = v; }
+      },
       children: [],
       setAttribute(k, v) { this[k] = v; },
       appendChild(c) { this.children.push(c); return c; }

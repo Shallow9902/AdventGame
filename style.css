@@ -3421,9 +3421,24 @@ html.block-drag-active body { overflow: hidden; overscroll-behavior: none; }
 .finale-unwrap-wrap { position: relative; width: 300px; height: 300px; margin: 0 auto; border-radius: 12px; overflow: hidden; border: 3px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5); background: #111; touch-action: none; }
 .unwrap-photo { position: absolute; top:0; left:0; width: 100%; height: 100%; background-size: cover; background-position: center; }
 .leaves-overlay { position: absolute; top:0; left:0; width: 100%; height: 100%; }
-.leaf { position: absolute; width: 70px; height: 70px; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234caf50"><path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 7,11.5 7,11.5C7,11.5 12,8 17,8Z"/></svg>') no-repeat center/contain; cursor: pointer; filter: drop-shadow(2px 4px 4px rgba(0,0,0,0.4)); transition: transform 0.4s ease-in, opacity 0.4s; z-index: 2; }
-.leaf:hover { filter: brightness(1.2) drop-shadow(2px 4px 4px rgba(0,0,0,0.6)); }
-.leaf.falling { transform: translateY(200px) rotate(90deg) scale(0) !important; opacity: 0; pointer-events: none; }
+.leaf {
+  position: absolute; width: 60px; height: 60px;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234caf50"><path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 7,11.5 7,11.5C7,11.5 12,8 17,8Z"/></svg>') no-repeat center/contain;
+  cursor: pointer;
+  transform: rotate(var(--rot)) scale(var(--scale));
+  filter: drop-shadow(2px 4px 4px rgba(0,0,0,0.5)) hue-rotate(var(--hue)) brightness(var(--br));
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s;
+  z-index: 2;
+  margin-left: -30px; margin-top: -30px;
+}
+.leaf.flower {
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ff80ab"><path d="M12,2C14.76,2 17,4.24 17,7C17,8.38 16.44,9.63 15.54,10.54C16.44,11.44 17,12.69 17,14.07C17,16.83 14.76,19.07 12,19.07C9.24,19.07 7,16.83 7,14.07C7,12.69 7.56,11.44 8.46,10.54C7.56,9.63 7,8.38 7,7C7,4.24 9.24,2 12,2Z"/></svg>') no-repeat center/contain;
+}
+.leaf:hover { filter: drop-shadow(2px 4px 4px rgba(0,0,0,0.7)) hue-rotate(var(--hue)) brightness(calc(var(--br) + 0.3)); }
+.leaf.falling {
+  transform: translateY(150px) translateX(50px) rotate(calc(var(--rot) + 120deg)) scale(0) !important;
+  opacity: 0; pointer-events: none;
+}
 .venom-scratch { position: absolute; top:0; left:0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; transition: opacity 0.5s; z-index: 2; }
 .wrapper-container { cursor: pointer; }
 .wrapper-left, .wrapper-right { position: absolute; top:0; width: 50%; height: 100%; background: linear-gradient(135deg, #ff4d4d, #c62828); transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1); z-index: 2; pointer-events: none; }
