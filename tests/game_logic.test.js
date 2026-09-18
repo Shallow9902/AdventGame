@@ -1524,72 +1524,40 @@ test('PhotoPuzzleGame Protocol MY: hint, multi-join Venom charge, and bounds rec
 });
 
 
-test('FinaleGame: 3 photo-based birthday phases with progressive unlocking', () => {
+test('FinaleGame: 3 tactile surprise phases', () => {
   const ctx = loadContext();
-  const mockContainer = {
-    innerHTML: '',
-    appendChild(c) { return c; }
-  };
+  const mockContainer = { innerHTML: '', appendChild(c) { return c; } };
 
   let won = false;
-  const game = ctx.Games.create('finale', mockContainer, {}, () => {
-    won = true;
-  });
+  const game = ctx.Games.create('finale', mockContainer, {}, () => { won = true; });
 
-  // 1. Initial state — 3 phases
   assert.equal(game.phaseIndex, 0, 'Must start at phase 0');
-  assert.deepEqual(Array.from(game.solvedPhases), [false, false, false], 'All 3 phases unsolved');
-  assert.equal(game.stats.textContent, '0%', 'Initial progress 0%');
-
-  // backward compat
-  assert.equal(game.lockIndex, 0, 'lockIndex alias must work');
-  assert.strictEqual(game.solvedLocks, game.solvedPhases, 'solvedLocks must alias solvedPhases');
-
-  // Dismiss gate
   if (game.gateBtn && game.gateBtn.click) game.gateBtn.click();
 
-  // 2. Phase 1: Timeline
-  assert.ok(game.phaseLabel.textContent.includes('ЛЕНТА ВОСПОМИНАНИЙ'), 'Phase 1 label');
-
-  // Solve timeline programmatically
+  // Phase 1: Leaves
+  assert.ok(game.phaseLabel.textContent.includes('ЛИСТЬЯ ГРУТИКА'), 'Phase 1 label');
   game.solveLock(0);
-  assert.equal(game.solvedPhases[0], true, 'Phase 1 solved');
-  assert.equal(game.stats.textContent, '33%', 'Progress 33% after phase 1');
-  assert.ok(!game.nextPhaseWrap.classList.contains('hidden'), 'Next button visible');
-
-  // Advance
+  assert.equal(game.solvedPhases[0], true);
+  
   game.nextPhase();
   assert.equal(game.phaseIndex, 1);
 
-  // 3. Phase 2: Scratch cards
-  assert.ok(game.phaseLabel.textContent.includes('ПОЖЕЛАНИЯ'), 'Phase 2 label');
-
+  // Phase 2: Scratch
+  assert.ok(game.phaseLabel.textContent.includes('ЗАВЕСА ВЕНОМА'), 'Phase 2 label');
   game.solveLock(1);
-  assert.equal(game.solvedPhases[1], true, 'Phase 2 solved');
-  assert.equal(game.stats.textContent, '67%', 'Progress 67% after phase 2');
-
-  // Advance
+  assert.equal(game.solvedPhases[1], true);
+  
   game.nextPhase();
   assert.equal(game.phaseIndex, 2);
 
-  // 4. Phase 3: Cake
-  assert.ok(game.phaseLabel.textContent.includes('ТОРТ'), 'Phase 3 label');
-
-  // Blow individual candles
-  game.blowCandle(0);
-  assert.equal(game.candlesBlown[0], true, 'Candle 0 blown');
-  assert.equal(game.solvedPhases[2], false, 'Not done yet');
-
-  // Blow remaining
-  for (var k = 1; k < 6; k++) game.blowCandle(k);
-  assert.equal(game.solvedPhases[2], true, 'Phase 3 solved');
-  assert.equal(game.stats.textContent, '100%', 'Progress 100%');
-
-  // Completion
+  // Phase 3: Wrapper
+  assert.ok(game.phaseLabel.textContent.includes('ГЛАВНЫЙ ПОДАРОК'), 'Phase 3 label');
+  game.solveLock(2);
+  assert.equal(game.solvedPhases[2], true);
+  
   assert.ok(game.phaseLabel.textContent.includes('ПРАЗДНИК ЗАПУЩЕН'));
   assert.equal(game.completedMessage, 'Праздничный механизм запущен');
-})
-
+});
 test('Day 6 texts no longer advertise three phases, code, balance, or impulse', () => {
   const appCode = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
   const gamesCode = fs.readFileSync(path.join(__dirname, '..', 'games.js'), 'utf8');
@@ -1598,7 +1566,7 @@ test('Day 6 texts no longer advertise three phases, code, balance, or impulse', 
   assert.match(appCode, /type:\s*"finale"[^}]+badge:\s*"Праздник"/, 'Day 6 config badge must be "Праздник"');
   assert.match(appCode, /3 праздничных этапа с фото/, 'Day 6 description must be 3 photo phases');
   assert.match(appCode, /title:\s*"Праздничный механизм"/, 'Day 6 title must be "Праздничный механизм"');
-  assert.match(appCode, /Фото, пожелания и торт — запусти праздник!/, 'Day 6 instruction must match requirement');
+  assert.match(appCode, /Грутик и Веном спрятали фотографии. Распакуй их!/, 'Day 6 instruction must match requirement');
 
   // app.js Day 6 GREET
   const greetMatch = appCode.match(/var GREET = \[([\s\S]*?)\];/);

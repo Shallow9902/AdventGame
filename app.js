@@ -237,7 +237,7 @@
     { type: "echo", mark: "03", icon: "✦", badge: "Головоломка", desc: "4 космических сектора", kicker: "ДЕНЬ 03 · ГОЛОВОЛОМКА", title: "Звёздные нити", instruction: "Перетаскивай звёзды так, чтобы нити не пересекались.", relationship: SITE_CONFIG.relationship },
     { type: "photoPuzzle", mark: "04", icon: "🖤", badge: "Фотопазл", desc: "Собери нашу фотографию", kicker: "ДЕНЬ 04 · НАШЕ ФОТО", title: "Собери нашу фотографию", instruction: "Собери нашу общую фотографию из кусочков пазла.", photo: SITE_CONFIG.couplePhoto, photos: SITE_CONFIG.day4Photos, rows: 4, cols: 3, relationship: SITE_CONFIG.relationship },
     { type: "circuit", mark: "05", icon: "💡", badge: "Логика", desc: "3 процедурных маршрута", kicker: "ДЕНЬ 05 · ЛОГИКА", title: "Живая схема", instruction: "Выстрой три длинных пути от Грутика до колеса." },
-    { type: "finale", mark: "06", icon: "🎂", badge: "Праздник", desc: "3 праздничных этапа с фото", kicker: "ДЕНЬ 06 · ПРАЗДНИК", title: "Праздничный механизм", instruction: "Фото, пожелания и торт — запусти праздник!" }
+    { type: "finale", mark: "06", icon: "🎂", badge: "Праздник", desc: "3 праздничных этапа с фото", kicker: "ДЕНЬ 06 · ПРАЗДНИК", title: "Праздничный механизм", instruction: "Грутик и Веном спрятали фотографии. Распакуй их!" }
   ];
 
 
