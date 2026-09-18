@@ -2989,10 +2989,10 @@ FinaleGame.prototype.buildLeaves = function () {
 // ======================= PHASE 2: SCRATCH =======================
 FinaleGame.prototype.buildScratch = function () {
   var self = this;
-  var wrap = gameEl("div", "finale-unwrap-wrap");
+  var wrap = gameEl("div", "finale-unwrap-wrap venom-wrap");
   var photo = this.surprises[1];
   var img = gameEl("div", "unwrap-photo");
-  img.style.backgroundImage = "url('" + photo.src + "')";
+  img.style.backgroundImage = "url('" + encodeURI(photo.src) + "')";
   wrap.appendChild(img);
 
   var cvs = document.createElement("canvas");
@@ -3000,22 +3000,62 @@ FinaleGame.prototype.buildScratch = function () {
   cvs.height = 300;
   cvs.className = "venom-scratch";
   wrap.appendChild(cvs);
-  this.stage.appendChild(wrap);
+
+  var particles = gameEl("div", "venom-particles");
+  wrap.appendChild(particles);
+
+  var quotes = [
+    "МЫ СПРЯТАЛИ ЭТО ЛУЧШЕ ВСЕХ!",
+    "Эй! Симбиот — не игрушка!",
+    "Мы... теряем форму... Ладно, забирай!"
+  ];
+  var quoteStage = 0;
+  self.setDialogue("🖤 Веном", quotes[0], true);
 
   var ctx = cvs.getContext ? cvs.getContext("2d") : null;
   if (ctx) {
-    ctx.fillStyle = "#16102b";
+    // 1. Dark symbiote background
+    ctx.fillStyle = "#0a0710";
     ctx.fillRect(0,0,300,300);
-    ctx.fillStyle = "#2d1b4e";
-    for(var i=0; i<30; i++){
+
+    // 2. Texture tendrils
+    ctx.strokeStyle = "#170f24";
+    ctx.lineWidth = 12;
+    ctx.lineCap = "round";
+    for (var i=0; i<25; i++) {
       ctx.beginPath();
-      ctx.arc(Math.random()*300, Math.random()*300, Math.random()*40+10, 0, Math.PI*2);
-      ctx.fill();
+      ctx.moveTo(Math.random()*300, -20);
+      ctx.bezierCurveTo(Math.random()*300, 100, Math.random()*300, 200, Math.random()*300, 320);
+      ctx.stroke();
     }
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.font = "bold 20px system-ui";
-    ctx.textAlign = "center";
-    ctx.fillText("✨ Очисти меня ✨", 150, 150);
+
+    // 3. Venom face
+    ctx.fillStyle = "#e0e0e0";
+    ctx.shadowColor = "rgba(180, 100, 255, 0.5)";
+    ctx.shadowBlur = 15;
+
+    // Left eye
+    ctx.beginPath();
+    ctx.moveTo(60, 110);
+    ctx.quadraticCurveTo(100, 50, 140, 100);
+    ctx.quadraticCurveTo(110, 130, 60, 110);
+    ctx.fill();
+
+    // Right eye
+    ctx.beginPath();
+    ctx.moveTo(240, 110);
+    ctx.quadraticCurveTo(200, 50, 160, 100);
+    ctx.quadraticCurveTo(190, 130, 240, 110);
+    ctx.fill();
+
+    // Wicked smile
+    ctx.beginPath();
+    ctx.moveTo(70, 190);
+    ctx.quadraticCurveTo(150, 250, 230, 190);
+    ctx.quadraticCurveTo(150, 225, 70, 190);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
   }
 
   var scratching = false;
@@ -3031,13 +3071,42 @@ FinaleGame.prototype.buildScratch = function () {
     if(!ctx) return;
     ctx.globalCompositeOperation = "destination-out";
     ctx.beginPath();
-    ctx.lineWidth = 55;
+    
+    // Organic tearing brush
+    ctx.lineWidth = 35 + Math.random()*20;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.moveTo(p1.x, p1.y);
     ctx.lineTo(p2.x, p2.y);
     ctx.stroke();
+    
+    // Extra torn edge offset
+    ctx.lineWidth = 15;
+    ctx.lineTo(p2.x + (Math.random()*30-15), p2.y + (Math.random()*30-15));
+    ctx.stroke();
+
     ctx.globalCompositeOperation = "source-over";
+
+    // Splatter particles
+    if (Math.random() < 0.4) {
+      var splat = gameEl("div", "symbiote-splat");
+      splat.style.left = p2.x + "px";
+      splat.style.top = p2.y + "px";
+      var tx = (Math.random()*100 - 50);
+      var ty = (Math.random()*100 - 50);
+      splat.style.transform = "translate(0px, 0px) scale(0.2)";
+      particles.appendChild(splat);
+      
+      // Animate out next frame
+      setTimeout(function() {
+        splat.style.transform = "translate(" + tx + "px, " + ty + "px) scale(" + (0.5+Math.random()*1) + ")";
+        splat.style.opacity = "0";
+      }, 20);
+
+      setTimeout(function() {
+        if (splat.parentNode) splat.parentNode.removeChild(splat);
+      }, 700);
+    }
   }
 
   cvs.addEventListener("pointerdown", function(e) {
@@ -3058,16 +3127,26 @@ FinaleGame.prototype.buildScratch = function () {
     if (self.solvedPhases[1] || !ctx) return;
     var imageData = ctx.getImageData(0, 0, 300, 300);
     var transparent = 0;
-    // Check sparse pixels for performance
     var step = 4 * 10; 
     for (var p = 3; p < imageData.data.length; p += step) {
       if (imageData.data[p] < 10) transparent++;
     }
     var totalChecked = (300*300) / 10;
-    if (transparent / totalChecked > 0.6) {
+    var percent = transparent / totalChecked;
+    
+    // Dynamic dialogue reactions based on scratch %
+    if (percent > 0.15 && quoteStage === 0) {
+      quoteStage = 1;
+      self.setDialogue("🖤 Веном", quotes[1], true);
+    } else if (percent > 0.40 && quoteStage === 1) {
+      quoteStage = 2;
+      self.setDialogue("🖤 Веном", quotes[2], true);
+    }
+
+    if (percent > 0.6) {
       cvs.style.opacity = "0";
       cvs.style.pointerEvents = "none";
-      self.onPhaseSolved(1, "🖤 Веном", photo.caption || "Неплохо.", true);
+      self.onPhaseSolved(1, "🖤 Веном", photo.caption || "Мы сдаёмся.", true);
     }
   };
 
@@ -3083,8 +3162,9 @@ FinaleGame.prototype.buildScratch = function () {
   cvs.addEventListener("pointercancel", endScratch);
   cvs.addEventListener("touchstart", function(e){ e.preventDefault(); });
   cvs.addEventListener("touchmove", function(e){ e.preventDefault(); });
-};
 
+  this.stage.appendChild(wrap);
+};
 // ======================= PHASE 3: WRAPPER =======================
 FinaleGame.prototype.buildWrapper = function () {
   var self = this;
