@@ -2934,14 +2934,178 @@ FinaleGame.prototype.buildLeaves = function () {
     self.leafCount--;
     updateCounter();
 
-    if (self.leafCount <= totalLeaves * 0.25 && !self.autoClearing) {
-      self.autoClearing = true;
-      self.setDialogue("🌿 Грутик", "Я есть Грутик! (Ветер помогает!)");
-      var remaining = overlay.querySelectorAll(".leaf:not(.falling)");
-      remaining.forEach(function(l, i) {
-        setTimeout(function() { popLeaf(l, true); }, Math.random() * 500 + i * 50);
-      });
+    if (self.leafCount <= 0 && !self.solvedPhases[0]) {
+      setTimeout(function() {
+        counterBadge.style.opacity = "0";
+        self.onPhaseSolved(0, "🌿 Грутик", "Я есть Грутик! (" + (photo.caption || "Красиво получилось!") + ")");
+      }, 500);
     }
+  };
+
+  for (var r = 0; r < rows; r++) {
+    for (var c = 0; c < cols; c++) {
+      var leaf = gameEl("div", "leaf");
+      if (Math.random() < 0.15) {
+        leaf.classList.add("flower");
+      }
+
+      var px = 10 + (c / (cols - 1) * 80) + (Math.random() * 10 - 5);
+      var py = 10 + (r / (rows - 1) * 80) + (Math.random() * 10 - 5);
+      
+      leaf.style.left = px + "%";
+      leaf.style.top = py + "%";
+      
+      var rot = Math.random() * 360;
+      var scale = 1.0 + Math.random() * 0.5; 
+      var hue = Math.random() * 100 - 40; 
+      var br = 0.7 + Math.random() * 0.5;
+      
+      leaf.style.setProperty("--rot", rot + "deg");
+      leaf.style.setProperty("--scale", scale);
+      leaf.style.setProperty("--hue", hue + "deg");
+      leaf.style.setProperty("--br", br);
+      
+      leaf.addEventListener("pointerdown", function(e) {
+        popLeaf(this);
+      });
+      
+      overlay.appendChild(leaf);
+    }
+  }
+
+  wrap.appendChild(overlay);
+  this.stage.appendChild(wrap);
+};
+
+// ======================= PHASE 2: SCRATCH =======================
+FinaleGame.prototype.buildScratch = function () {
+  var self = this;
+  var wrap = gameEl("div", "finale-unwrap-wrap venom-wrap");
+  var photo = this.surprises[1];
+  var img = gameEl("div", "unwrap-photo");
+  img.style.backgroundImage = "url('" + encodeURI(photo.src) + "')";
+  wrap.appendChild(img);
+
+  self.setDialogue("🖤 Веном", "Симбиотический захват! Не отдадим!", true);
+
+  var core = gameEl("div", "venom-core");
+  var numArms = 5;
+  var activeCount = numArms;
+  
+  var checkWin = function() {
+    if (activeCount === 0) {
+       core.style.transform = "scale(0)";
+       core.style.opacity = "0";
+       self.setDialogue("🖤 Веном", "СЛИШКОМ... МНОГО... СВЕТА!!", true);
+       setTimeout(function() {
+         self.onPhaseSolved(1, "🖤 Веном", photo.caption || "Мы сдаёмся.", true);
+       }, 1500);
+    }
+  };
+
+  for (var i = 0; i < numArms; i++) {
+    (function(idx) {
+      var angle = (idx * (360 / numArms)) - 90 + (Math.random()*40 - 20);
+      var armWrap = gameEl("div", "venom-arm-wrap");
+      armWrap.style.transform = "rotate(" + angle + "deg)";
+      
+      var armLine = gameEl("div", "venom-arm-line");
+      var anchor = gameEl("div", "venom-anchor");
+      
+      armWrap.appendChild(armLine);
+      armWrap.appendChild(anchor);
+      core.appendChild(armWrap);
+
+      var pinned = false;
+      var timer = null;
+
+      anchor.addEventListener("pointerdown", function(e) {
+        e.preventDefault();
+        if (pinned || activeCount === 0) return;
+        pinned = true;
+        activeCount--;
+        armLine.style.width = "0%";
+        anchor.classList.add("pinned");
+
+        self.setDialogue("🖤 Веном", ["Ай!", "Жжётся!", "Отпусти!", "Свет!", "Хссс!"][Math.floor(Math.random()*5)], true);
+
+        checkWin();
+
+        if (activeCount > 0) {
+           timer = setTimeout(function() {
+             if (activeCount === 0) return; // already won
+             pinned = false;
+             activeCount++;
+             armLine.style.width = "100%";
+             anchor.classList.remove("pinned");
+             self.setDialogue("🖤 Веном", "Ха! Мы возвращаемся!", true);
+           }, 1500 + Math.random() * 1000);
+        }
+      });
+    })(i);
+  }
+
+  wrap.appendChild(core);
+  this.stage.appendChild(wrap);
+};
+// ======================= PHASE 3: WRAPPER =======================
+FinaleGame.prototype.onPhaseSolved = function (idx, speaker, text, isVenom) {
+  this.solvedPhases[idx] = true;
+  this.solvedLocks[idx] = true;
+  this.stats.textContent = Math.round(((idx + 1) / 3) * 100) + "%";
+  this.setDialogue(speaker, text, isVenom);
+
+  if (idx < 2) {
+    this.nextPhaseWrap.classList.remove("hidden");
+  } else {
+    this.finishAll();
+  }
+};
+
+FinaleGame.prototype.nextPhase = function () {
+  this.nextLock();
+};
+
+FinaleGame.prototype.nextLock = function () {
+  if (this.phaseIndex < 2) {
+    this.startPhase(this.phaseIndex + 1);
+  }
+};
+
+// ======================= PHASE 1: LEAVES =======================
+FinaleGame.prototype.buildLeaves = function () {
+  var self = this;
+  var wrap = gameEl("div", "finale-unwrap-wrap");
+  var photo = this.surprises[0];
+  var img = gameEl("div", "unwrap-photo");
+  img.style.backgroundImage = "url('" + encodeURI(photo.src) + "')";
+  wrap.appendChild(img);
+
+  var bgFade = gameEl("div", "leaves-bg-fade");
+  wrap.appendChild(bgFade);
+
+  var counterBadge = gameEl("div", "leaf-counter");
+  wrap.appendChild(counterBadge);
+
+  var overlay = gameEl("div", "leaves-overlay");
+  
+  var cols = 7;
+  var rows = 7;
+  var totalLeaves = cols * rows;
+  this.leafCount = totalLeaves;
+  this.autoClearing = false;
+
+  var updateCounter = function() {
+    counterBadge.textContent = "🍂 " + self.leafCount;
+    bgFade.style.opacity = Math.max(0, (self.leafCount - (totalLeaves * 0.25)) / (totalLeaves * 0.75));
+  };
+  updateCounter();
+
+  var popLeaf = function(el, force) {
+    if (el.classList.contains("falling")) return;
+    el.classList.add("falling");
+    self.leafCount--;
+    updateCounter();
 
     if (self.leafCount <= 0 && !self.solvedPhases[0]) {
       setTimeout(function() {
@@ -2995,174 +3159,239 @@ FinaleGame.prototype.buildScratch = function () {
   img.style.backgroundImage = "url('" + encodeURI(photo.src) + "')";
   wrap.appendChild(img);
 
-  var cvs = document.createElement("canvas");
-  cvs.width = 300;
-  cvs.height = 300;
-  cvs.className = "venom-scratch";
-  wrap.appendChild(cvs);
+  self.setDialogue("🖤 Веном", "Симбиотический захват! Не отдадим!", true);
 
-  var particles = gameEl("div", "venom-particles");
-  wrap.appendChild(particles);
-
-  var quotes = [
-    "МЫ СПРЯТАЛИ ЭТО ЛУЧШЕ ВСЕХ!",
-    "Эй! Симбиот — не игрушка!",
-    "Мы... теряем форму... Ладно, забирай!"
-  ];
-  var quoteStage = 0;
-  self.setDialogue("🖤 Веном", quotes[0], true);
-
-  var ctx = cvs.getContext ? cvs.getContext("2d") : null;
-  if (ctx) {
-    // 1. Dark symbiote background
-    ctx.fillStyle = "#0a0710";
-    ctx.fillRect(0,0,300,300);
-
-    // 2. Texture tendrils
-    ctx.strokeStyle = "#170f24";
-    ctx.lineWidth = 12;
-    ctx.lineCap = "round";
-    for (var i=0; i<25; i++) {
-      ctx.beginPath();
-      ctx.moveTo(Math.random()*300, -20);
-      ctx.bezierCurveTo(Math.random()*300, 100, Math.random()*300, 200, Math.random()*300, 320);
-      ctx.stroke();
-    }
-
-    // 3. Venom face
-    ctx.fillStyle = "#e0e0e0";
-    ctx.shadowColor = "rgba(180, 100, 255, 0.5)";
-    ctx.shadowBlur = 15;
-
-    // Left eye
-    ctx.beginPath();
-    ctx.moveTo(60, 110);
-    ctx.quadraticCurveTo(100, 50, 140, 100);
-    ctx.quadraticCurveTo(110, 130, 60, 110);
-    ctx.fill();
-
-    // Right eye
-    ctx.beginPath();
-    ctx.moveTo(240, 110);
-    ctx.quadraticCurveTo(200, 50, 160, 100);
-    ctx.quadraticCurveTo(190, 130, 240, 110);
-    ctx.fill();
-
-    // Wicked smile
-    ctx.beginPath();
-    ctx.moveTo(70, 190);
-    ctx.quadraticCurveTo(150, 250, 230, 190);
-    ctx.quadraticCurveTo(150, 225, 70, 190);
-    ctx.fill();
-
-    ctx.shadowBlur = 0;
-  }
-
-  var scratching = false;
-  var lastPos = null;
+  var core = gameEl("div", "venom-core");
+  var numArms = 5;
+  var activeCount = numArms;
   
-  function getPos(e) {
-    var rect = cvs.getBoundingClientRect();
-    var touch = e.touches ? e.touches[0] : e;
-    return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
-  }
-  
-  function erase(p1, p2) {
-    if(!ctx) return;
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.beginPath();
-    
-    // Organic tearing brush
-    ctx.lineWidth = 35 + Math.random()*20;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.moveTo(p1.x, p1.y);
-    ctx.lineTo(p2.x, p2.y);
-    ctx.stroke();
-    
-    // Extra torn edge offset
-    ctx.lineWidth = 15;
-    ctx.lineTo(p2.x + (Math.random()*30-15), p2.y + (Math.random()*30-15));
-    ctx.stroke();
-
-    ctx.globalCompositeOperation = "source-over";
-
-    // Splatter particles
-    if (Math.random() < 0.4) {
-      var splat = gameEl("div", "symbiote-splat");
-      splat.style.left = p2.x + "px";
-      splat.style.top = p2.y + "px";
-      var tx = (Math.random()*100 - 50);
-      var ty = (Math.random()*100 - 50);
-      splat.style.transform = "translate(0px, 0px) scale(0.2)";
-      particles.appendChild(splat);
-      
-      // Animate out next frame
-      setTimeout(function() {
-        splat.style.transform = "translate(" + tx + "px, " + ty + "px) scale(" + (0.5+Math.random()*1) + ")";
-        splat.style.opacity = "0";
-      }, 20);
-
-      setTimeout(function() {
-        if (splat.parentNode) splat.parentNode.removeChild(splat);
-      }, 700);
-    }
-  }
-
-  cvs.addEventListener("pointerdown", function(e) {
-    scratching = true;
-    if (cvs.setPointerCapture) cvs.setPointerCapture(e.pointerId);
-    lastPos = getPos(e);
-    erase(lastPos, lastPos);
-  });
-  
-  cvs.addEventListener("pointermove", function(e) {
-    if (!scratching) return;
-    var p = getPos(e);
-    erase(lastPos, p);
-    lastPos = p;
-  });
-
-  var checkReveal = function() {
-    if (self.solvedPhases[1] || !ctx) return;
-    var imageData = ctx.getImageData(0, 0, 300, 300);
-    var transparent = 0;
-    var step = 4 * 10; 
-    for (var p = 3; p < imageData.data.length; p += step) {
-      if (imageData.data[p] < 10) transparent++;
-    }
-    var totalChecked = (300*300) / 10;
-    var percent = transparent / totalChecked;
-    
-    // Dynamic dialogue reactions based on scratch %
-    if (percent > 0.15 && quoteStage === 0) {
-      quoteStage = 1;
-      self.setDialogue("🖤 Веном", quotes[1], true);
-    } else if (percent > 0.40 && quoteStage === 1) {
-      quoteStage = 2;
-      self.setDialogue("🖤 Веном", quotes[2], true);
-    }
-
-    if (percent > 0.6) {
-      cvs.style.opacity = "0";
-      cvs.style.pointerEvents = "none";
-      self.onPhaseSolved(1, "🖤 Веном", photo.caption || "Мы сдаёмся.", true);
+  var checkWin = function() {
+    if (activeCount === 0) {
+       core.style.transform = "scale(0)";
+       core.style.opacity = "0";
+       self.setDialogue("🖤 Веном", "СЛИШКОМ... МНОГО... СВЕТА!!", true);
+       setTimeout(function() {
+         self.onPhaseSolved(1, "🖤 Веном", photo.caption || "Мы сдаёмся.", true);
+       }, 1500);
     }
   };
 
-  function endScratch(e) {
-    if (scratching) {
-      scratching = false;
-      if (cvs.releasePointerCapture) cvs.releasePointerCapture(e.pointerId);
-      checkReveal();
+  for (var i = 0; i < numArms; i++) {
+    (function(idx) {
+      var angle = (idx * (360 / numArms)) - 90 + (Math.random()*40 - 20);
+      var armWrap = gameEl("div", "venom-arm-wrap");
+      armWrap.style.transform = "rotate(" + angle + "deg)";
+      
+      var armLine = gameEl("div", "venom-arm-line");
+      var anchor = gameEl("div", "venom-anchor");
+      
+      armWrap.appendChild(armLine);
+      armWrap.appendChild(anchor);
+      core.appendChild(armWrap);
+
+      var pinned = false;
+      var timer = null;
+
+      anchor.addEventListener("pointerdown", function(e) {
+        e.preventDefault();
+        if (pinned || activeCount === 0) return;
+        pinned = true;
+        activeCount--;
+        armLine.style.width = "0%";
+        anchor.classList.add("pinned");
+
+        self.setDialogue("🖤 Веном", ["Ай!", "Жжётся!", "Отпусти!", "Свет!", "Хссс!"][Math.floor(Math.random()*5)], true);
+
+        checkWin();
+
+        if (activeCount > 0) {
+           timer = setTimeout(function() {
+             if (activeCount === 0) return; // already won
+             pinned = false;
+             activeCount++;
+             armLine.style.width = "100%";
+             anchor.classList.remove("pinned");
+             self.setDialogue("🖤 Веном", "Ха! Мы возвращаемся!", true);
+           }, 1500 + Math.random() * 1000);
+        }
+      });
+    })(i);
+  }
+
+  wrap.appendChild(core);
+  this.stage.appendChild(wrap);
+};
+// ======================= PHASE 3: WRAPPER =======================
+FinaleGame.prototype.onPhaseSolved = function (idx, speaker, text, isVenom) {
+  this.solvedPhases[idx] = true;
+  this.solvedLocks[idx] = true;
+  this.stats.textContent = Math.round(((idx + 1) / 3) * 100) + "%";
+  this.setDialogue(speaker, text, isVenom);
+
+  if (idx < 2) {
+    this.nextPhaseWrap.classList.remove("hidden");
+  } else {
+    this.finishAll();
+  }
+};
+
+FinaleGame.prototype.nextPhase = function () {
+  this.nextLock();
+};
+
+FinaleGame.prototype.nextLock = function () {
+  if (this.phaseIndex < 2) {
+    this.startPhase(this.phaseIndex + 1);
+  }
+};
+
+// ======================= PHASE 1: LEAVES =======================
+FinaleGame.prototype.buildLeaves = function () {
+  var self = this;
+  var wrap = gameEl("div", "finale-unwrap-wrap");
+  var photo = this.surprises[0];
+  var img = gameEl("div", "unwrap-photo");
+  img.style.backgroundImage = "url('" + encodeURI(photo.src) + "')";
+  wrap.appendChild(img);
+
+  var bgFade = gameEl("div", "leaves-bg-fade");
+  wrap.appendChild(bgFade);
+
+  var counterBadge = gameEl("div", "leaf-counter");
+  wrap.appendChild(counterBadge);
+
+  var overlay = gameEl("div", "leaves-overlay");
+  
+  var cols = 7;
+  var rows = 7;
+  var totalLeaves = cols * rows;
+  this.leafCount = totalLeaves;
+  this.autoClearing = false;
+
+  var updateCounter = function() {
+    counterBadge.textContent = "🍂 " + self.leafCount;
+    bgFade.style.opacity = Math.max(0, (self.leafCount - (totalLeaves * 0.25)) / (totalLeaves * 0.75));
+  };
+  updateCounter();
+
+  var popLeaf = function(el, force) {
+    if (el.classList.contains("falling")) return;
+    el.classList.add("falling");
+    self.leafCount--;
+    updateCounter();
+
+    if (self.leafCount <= 0 && !self.solvedPhases[0]) {
+      setTimeout(function() {
+        counterBadge.style.opacity = "0";
+        self.onPhaseSolved(0, "🌿 Грутик", "Я есть Грутик! (" + (photo.caption || "Красиво получилось!") + ")");
+      }, 500);
+    }
+  };
+
+  for (var r = 0; r < rows; r++) {
+    for (var c = 0; c < cols; c++) {
+      var leaf = gameEl("div", "leaf");
+      if (Math.random() < 0.15) {
+        leaf.classList.add("flower");
+      }
+
+      var px = 10 + (c / (cols - 1) * 80) + (Math.random() * 10 - 5);
+      var py = 10 + (r / (rows - 1) * 80) + (Math.random() * 10 - 5);
+      
+      leaf.style.left = px + "%";
+      leaf.style.top = py + "%";
+      
+      var rot = Math.random() * 360;
+      var scale = 1.0 + Math.random() * 0.5; 
+      var hue = Math.random() * 100 - 40; 
+      var br = 0.7 + Math.random() * 0.5;
+      
+      leaf.style.setProperty("--rot", rot + "deg");
+      leaf.style.setProperty("--scale", scale);
+      leaf.style.setProperty("--hue", hue + "deg");
+      leaf.style.setProperty("--br", br);
+      
+      leaf.addEventListener("pointerdown", function(e) {
+        popLeaf(this);
+      });
+      
+      overlay.appendChild(leaf);
     }
   }
 
-  cvs.addEventListener("pointerup", endScratch);
-  cvs.addEventListener("pointercancel", endScratch);
-  cvs.addEventListener("touchstart", function(e){ e.preventDefault(); });
-  cvs.addEventListener("touchmove", function(e){ e.preventDefault(); });
+  wrap.appendChild(overlay);
+  this.stage.appendChild(wrap);
+};
 
+// ======================= PHASE 2: SCRATCH =======================
+FinaleGame.prototype.buildScratch = function () {
+  var self = this;
+  var wrap = gameEl("div", "finale-unwrap-wrap venom-wrap");
+  var photo = this.surprises[1];
+  var img = gameEl("div", "unwrap-photo");
+  img.style.backgroundImage = "url('" + encodeURI(photo.src) + "')";
+  wrap.appendChild(img);
+
+  self.setDialogue("🖤 Веном", "Симбиотический захват! Не отдадим!", true);
+
+  var core = gameEl("div", "venom-core");
+  var numArms = 5;
+  var activeCount = numArms;
+  
+  var checkWin = function() {
+    if (activeCount === 0) {
+       core.style.transform = "scale(0)";
+       core.style.opacity = "0";
+       self.setDialogue("🖤 Веном", "СЛИШКОМ... МНОГО... СВЕТА!!", true);
+       setTimeout(function() {
+         self.onPhaseSolved(1, "🖤 Веном", photo.caption || "Мы сдаёмся.", true);
+       }, 1500);
+    }
+  };
+
+  for (var i = 0; i < numArms; i++) {
+    (function(idx) {
+      var angle = (idx * (360 / numArms)) - 90 + (Math.random()*40 - 20);
+      var armWrap = gameEl("div", "venom-arm-wrap");
+      armWrap.style.transform = "rotate(" + angle + "deg)";
+      
+      var armLine = gameEl("div", "venom-arm-line");
+      var anchor = gameEl("div", "venom-anchor");
+      
+      armWrap.appendChild(armLine);
+      armWrap.appendChild(anchor);
+      core.appendChild(armWrap);
+
+      var pinned = false;
+      var timer = null;
+
+      anchor.addEventListener("pointerdown", function(e) {
+        e.preventDefault();
+        if (pinned || activeCount === 0) return;
+        pinned = true;
+        activeCount--;
+        armLine.style.width = "0%";
+        anchor.classList.add("pinned");
+
+        self.setDialogue("🖤 Веном", ["Ай!", "Жжётся!", "Отпусти!", "Свет!", "Хссс!"][Math.floor(Math.random()*5)], true);
+
+        checkWin();
+
+        if (activeCount > 0) {
+           timer = setTimeout(function() {
+             if (activeCount === 0) return; // already won
+             pinned = false;
+             activeCount++;
+             armLine.style.width = "100%";
+             anchor.classList.remove("pinned");
+             self.setDialogue("🖤 Веном", "Ха! Мы возвращаемся!", true);
+           }, 1500 + Math.random() * 1000);
+        }
+      });
+    })(i);
+  }
+
+  wrap.appendChild(core);
   this.stage.appendChild(wrap);
 };
 // ======================= PHASE 3: WRAPPER =======================
