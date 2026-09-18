@@ -32,6 +32,8 @@
       venomInfected: false,
       venomControlled: false,
       finalForm: false,
+      finalStorySeen: false,
+      grootFlewAway: false,
       choices: {},
       speechSeen: [],
       won: [],
@@ -713,6 +715,21 @@
   function updateGrutikBar() {
     var companionVisible = window.__previewDay != null || state.introSeen && state.grootPlanted;
     setCompanionVisible(companionVisible);
+
+    if (state.grootFlewAway) {
+      var cCanvas = $("grutikCanvas");
+      if(cCanvas) cCanvas.style.display = "none";
+      $("grutikBar").classList.add("sms-mode");
+      var sayEl = $("grutikSay");
+      if (sayEl) {
+        sayEl.innerHTML = "<div class='sms-sender'>От: Грутик 🌿</div><div class='sms-message'>У меня всё хорошо! Мы уже в космосе. Скучаю! 💚🖤</div>";
+      }
+      return;
+    }
+    var cCanvas2 = $("grutikCanvas");
+    if(cCanvas2) cCanvas2.style.display = "block";
+    $("grutikBar").classList.remove("sms-mode");
+
     var sleeping = isSleeping();
     try {
       var nowTime = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
@@ -1108,6 +1125,23 @@
     updateGrutikBar();
   }
 
+  function grantAllRemaining() {
+    var pool = typeof GIFT_POOL !== "undefined" ? GIFT_POOL : [];
+    var added = 0;
+    pool.forEach(function(g) {
+      if (state.given.indexOf(g.id) === -1) {
+        var giftNum = g.num || parseInt(String(g.id).replace(/\D/g, ""), 10) || "?";
+        state.given.push(g.id);
+        state.givenLog.push({ id: g.id, num: giftNum, title: "Подарок №" + giftNum, originalTitle: g.title, photo: g.photo });
+        added++;
+      }
+    });
+    if (state.givenDay.indexOf(5) === -1) state.givenDay.push(5);
+    state.won = state.won.filter(function (d) { return d !== 5; });
+    save();
+    updateGrutikBar();
+  }
+
   function unlockFinal() {
     state.finalForm = true;
     save();
@@ -1213,7 +1247,7 @@
 
   var FINAL_SCENE = [
     S(8),
-    L("nar", "Все испытания пройдены. Но праздник и ваша история продолжаются."),
+    L("nar", "Все испытания пройдены. Подарки найдены. Праздник продолжается!"),
     W(600),
     L("nar", "Грутик касается края того самого горшка, с которого всё началось."),
     W(800),
@@ -1225,7 +1259,7 @@
     L("gru", "Я есть Грутик!", "Зато теперь вон какой большой!"),
     L("venom", "Ладно, ладно. Ты вырос."),
     W(700),
-    L("nar", "Грутик тянется к экрану и рисует что-то корнями. Получается кривое сердечко."),
+    L("nar", "Грутик тянется к экрану и рисует что-то корнями. Получается кривое, но милое сердечко."),
     F("heartsIn", 400),
     W(500),
     L("gru", "Я есть Грутик.", "Это тебе, от всего сердца."),
@@ -1242,28 +1276,29 @@
       { text: "💚 Спасибо, Грутик. Ты лучший.", steps: [
         L("gru", "Я есть Грутик...", "Ой, я сейчас растаю..."),
         F("heartsIn", 400),
-        L("nar", "Его листочки краснеют. Веном деликатно отворачивается."),
-        L("venom", "Кажется, ему понравилось.")
+        L("nar", "Его листочки краснеют. Веном деликатно отворачивается.")
       ]},
       { text: "🤗 Обнимашки!", steps: [
-        L("nar", "Ты прижимаешь ладони к экрану. Грутик прижимает ветки с другой стороны."),
-        L("gru", "Я есть Грутик!", "Тепло-о-о!"),
+        L("nar", "Ты обнимаешь экран. Грутик счастливо прижимается к стеклу изнутри."),
         F("heartsIn", 400),
-        L("venom", "...Хватит. Мы тоже хотим."),
-        L("nar", "Чёрные щупальца обнимают Грутика. Семейная обнимашка.")
+        L("gru", "Я есть Грутик!", "Обнимашки!")
       ]},
-      { text: "🌱 Я буду за тобой ухаживать", steps: [
-        L("gru", "Я есть Грутик!", "Ура! Я буду самым счастливым деревом!"),
-        L("nar", "Он расправляет ветки во всю ширину. Это самый счастливый Грутик, которого ты видела."),
-        L("venom", "Значит, мы остаёмся навсегда?"),
-        L("gru", "Я есть Грутик!", "Да-да-да!"),
-        L("venom", "Он говорит «да».")
+      { text: "💧 Я буду за тобой ухаживать и дальше.", steps: [
+        L("gru", "Я есть Грутик...", "Правда?"),
+        L("venom", "Мы запомним это."),
+        L("nar", "Грутик счастливо кивает. Ему явно нравится эта идея.")
       ]}
     ]),
-    L("venom", "Он ещё сказал, что все подарки твои."),
-    L("gru", "Я есть Грутик!", "До единого!"),
-    L("venom", "Да-да. Именно это."),
-    B("Открыть письмо")
+    L("nar", "Грутик улыбается своей самой тёплой улыбкой."),
+    L("venom", "Пора. Нам пора."),
+    L("gru", "Я есть Грутик!", "Ещё увидимся! Мы полетели в космос!"),
+    F("flyAway", 1000),
+    W(1500),
+    L("nar", "Малыш взмывает вверх, оставляя после себя лишь мерцающие звёздочки..."),
+    W(1000),
+    F("switchToSMS", 500),
+    L("nar", "И тут... твой телефон вибрирует. Пришло новое сообщение!"),
+    B("Читать письмо")
   ];
 
   function afterGiftScene(day, isLast) {
@@ -1586,7 +1621,18 @@
   }
 
   function renderFinal() {
+    if (!state.finalStorySeen) {
+       state.finalStorySeen = true;
+       save();
+       hideScreens();
+       playStory(FINAL_SCENE, function() { renderFinal(); });
+       return;
+    }
     $("screenFinal").classList.add("active");
+    if (state.grootFlewAway) {
+       var fWrap = $("finalGrutikWrap");
+       if (fWrap) fWrap.style.display = "none";
+    }
     $("finalText").textContent = state.givenLog.length
       ? "SEED → PULSE → CODE → VENOM → SYNC → GIFT"
       : "";
