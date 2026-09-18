@@ -31,7 +31,7 @@ var SITE_CONFIG = {
     "photos/12.jpg"
   ],
   finaleSurprises: [
-    { src: "photos/03_IMG_6369-редакт.JPG", caption: "🌿 Грутик: С днём рождения!" },
+    { src: "photos/03_IMG_6369.JPG", caption: "🌿 Грутик: С днём рождения!" },
     { src: "photos/09_IMG_5819.JPG", caption: "🖤 Веном: С днём рождения." },
     { src: "photos/photo_2025-09-07_21-57-24.jpg", caption: "🎉 Главный подарок!" }
   ],
