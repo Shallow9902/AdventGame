@@ -2986,64 +2986,76 @@ FinaleGame.prototype.buildScratch = function () {
   img.style.backgroundImage = "url('" + encodeURI(photo.src) + "')";
   wrap.appendChild(img);
 
-  self.setDialogue("🖤 Веном", "Симбиотический захват! Не отдадим!", true);
+  self.setDialogue("🖤 Веном", "Симбиотический код! Нажми узлы по порядку: Кровь 🔴, Небо 🔵, Яд 🟢, Свет 🟡!", true);
 
   var core = gameEl("div", "venom-core");
-  var numArms = 5;
-  var activeCount = numArms;
   
-  var checkWin = function() {
-    if (activeCount === 0) {
-       core.style.transform = "scale(0)";
-       core.style.opacity = "0";
-       self.setDialogue("🖤 Веном", "СЛИШКОМ... МНОГО... СВЕТА!!", true);
-       setTimeout(function() {
-         self.onPhaseSolved(1, "🖤 Веном", photo.caption || "Мы сдаёмся.", true);
-       }, 1500);
-    }
-  };
+  var expected = ["red", "blue", "green", "yellow"];
+  var currentStep = 0;
+  
+  var nodes = [
+    { id: "red", color: "#ff3366" },
+    { id: "blue", color: "#33ccff" },
+    { id: "green", color: "#33ff66" },
+    { id: "yellow", color: "#ffcc00" }
+  ];
+  // Shuffle positions visually
+  nodes.sort(function() { return 0.5 - Math.random(); });
 
-  for (var i = 0; i < numArms; i++) {
-    (function(idx) {
-      var angle = (idx * (360 / numArms)) - 90 + (Math.random()*40 - 20);
-      var armWrap = gameEl("div", "venom-arm-wrap");
-      armWrap.style.transform = "rotate(" + angle + "deg)";
+  var nodeEls = [];
+  var angles = [0, 90, 180, 270];
+
+  nodes.forEach(function(n, i) {
+    var angle = angles[i];
+    var armWrap = gameEl("div", "venom-arm-wrap");
+    armWrap.style.transform = "rotate(" + angle + "deg)";
+    
+    var armLine = gameEl("div", "venom-arm-line");
+    var anchor = gameEl("div", "venom-anchor pulse-color");
+    anchor.style.setProperty("--ncolor", n.color);
+    anchor.dataset.id = n.id;
+    
+    armWrap.appendChild(armLine);
+    armWrap.appendChild(anchor);
+    core.appendChild(armWrap);
+    nodeEls.push({ anchor: anchor, line: armLine, id: n.id, color: n.color });
+
+    anchor.addEventListener("pointerdown", function(e) {
+      e.preventDefault();
+      if (anchor.classList.contains("locked") || currentStep >= 4) return;
       
-      var armLine = gameEl("div", "venom-arm-line");
-      var anchor = gameEl("div", "venom-anchor");
-      
-      armWrap.appendChild(armLine);
-      armWrap.appendChild(anchor);
-      core.appendChild(armWrap);
-
-      var pinned = false;
-      var timer = null;
-
-      anchor.addEventListener("pointerdown", function(e) {
-        e.preventDefault();
-        if (pinned || activeCount === 0) return;
-        pinned = true;
-        activeCount--;
-        armLine.style.width = "0%";
-        anchor.classList.add("pinned");
-
-        self.setDialogue("🖤 Веном", ["Ай!", "Жжётся!", "Отпусти!", "Свет!", "Хссс!"][Math.floor(Math.random()*5)], true);
-
-        checkWin();
-
-        if (activeCount > 0) {
-           timer = setTimeout(function() {
-             if (activeCount === 0) return; // already won
-             pinned = false;
-             activeCount++;
-             armLine.style.width = "100%";
-             anchor.classList.remove("pinned");
-             self.setDialogue("🖤 Веном", "Ха! Мы возвращаемся!", true);
-           }, 1500 + Math.random() * 1000);
+      if (n.id === expected[currentStep]) {
+        currentStep++;
+        anchor.classList.add("locked");
+        anchor.style.background = "#fff";
+        anchor.style.boxShadow = "0 0 20px #fff";
+        armLine.style.background = "#fff";
+        
+        if (currentStep === 4) {
+           core.style.transform = "scale(0)";
+           core.style.opacity = "0";
+           self.setDialogue("🖤 Веном", "ААА! Слишком много света!!", true);
+           setTimeout(function() {
+             self.onPhaseSolved(1, "🖤 Веном", photo.caption || "Мы сдаёмся.", true);
+           }, 1500);
+        } else {
+           self.setDialogue("🖤 Веном", ["Хорошо...", "Ещё два...", "Остался один!"][currentStep-1], true);
         }
-      });
-    })(i);
-  }
+      } else {
+        currentStep = 0;
+        self.setDialogue("🖤 Веном", "ОШИБКА! Ха-ха! Начни сначала: Кровь 🔴, Небо 🔵, Яд 🟢, Свет 🟡!", true);
+        core.classList.add("shake");
+        setTimeout(function() { core.classList.remove("shake"); }, 500);
+        
+        nodeEls.forEach(function(ne) {
+          ne.anchor.classList.remove("locked");
+          ne.anchor.style.background = ""; 
+          ne.anchor.style.boxShadow = "";
+          ne.line.style.background = "#170f24";
+        });
+      }
+    });
+  });
 
   wrap.appendChild(core);
   this.stage.appendChild(wrap);

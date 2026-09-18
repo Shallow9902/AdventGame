@@ -3552,3 +3552,17 @@ html.block-drag-active body { overflow: hidden; overscroll-behavior: none; }
   box-shadow: 0 2px 10px rgba(0,0,0,0.3);
   position: relative;
 }
+
+.venom-anchor.pulse-color {
+  background: var(--ncolor, #4a287c);
+  box-shadow: 0 0 15px var(--ncolor, #000);
+}
+.venom-core.shake {
+  animation: symbiote-shake 0.4s;
+}
+@keyframes symbiote-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-15px); }
+  50% { transform: translateX(15px); }
+  75% { transform: translateX(-15px); }
+}
