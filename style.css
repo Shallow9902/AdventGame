@@ -3566,3 +3566,25 @@ html.block-drag-active body { overflow: hidden; overscroll-behavior: none; }
   50% { transform: translateX(15px); }
   75% { transform: translateX(-15px); }
 }
+
+.finale-caption {
+  position: absolute;
+  left: 10px; right: 10px;
+  text-align: center;
+  color: #fff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: bold;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.5);
+  padding: 8px;
+  border-radius: 12px;
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 1s ease-in;
+  pointer-events: none;
+  z-index: 10;
+}
+.finale-caption.visible {
+  opacity: 1;
+}

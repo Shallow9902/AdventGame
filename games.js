@@ -2882,6 +2882,17 @@ FinaleGame.prototype.onPhaseSolved = function (idx, speaker, text, isVenom) {
   this.stats.textContent = Math.round(((idx + 1) / 3) * 100) + "%";
   this.setDialogue(speaker, text, isVenom);
 
+  var activeWrap = this.stage.querySelector(".finale-unwrap-wrap");
+  if (activeWrap) {
+     var photo = this.surprises[idx];
+     var cap = document.createElement("div");
+     cap.className = "finale-caption";
+     cap.textContent = photo.caption || "Поздравляю!";
+     cap.style.bottom = (idx === 2) ? "70px" : "15px";
+     activeWrap.appendChild(cap);
+     setTimeout(function() { cap.classList.add("visible"); }, 10);
+  }
+
   if (idx < 2) {
     this.nextPhaseWrap.classList.remove("hidden");
   } else {
